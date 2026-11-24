@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <!-- iPad向け：ピンチ操作やダブルタップによる画面拡大を完全に防止するビューポート設定 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>小学3年生 漢字マスター（光村図書順）</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- 教科書体に近い筆使いのGoogleフォント（iPad標準の游教科書体がない環境用のフォールバック） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       基本スタイル・iPad拡大防止・教科書体フォント定義
+       ========================================================================== */
+    :root {
+      --bg-paper: #F6F4EE;
+      --card-bg: #FFFFFF;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: var(--bg-paper);
+      color: #1E293B;
+      font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", sans-serif;
+      /* タッチ操作での拡大・長押しメニュー・テキスト選択を防止 */
+      touch-action: manipulation;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      overscroll-behavior: none;
+      overflow-x: hidden;
+    }
+
+    /* 教科書体フォント（iPadOS標準の游教科書体を最優先に指定） */
+    .font-kyokasho {
+      font-family: "YuKyokasho", "YuKyokasho Yoko", "游教科書体", "UD デジタル 教科書体 N-R", "UD デジタル 教科書体 NK-R", "Klee One", "Hiragino Maru Gothic ProN", serif;
+      font-weight: 500;
+    }
+
+    /* 漢字ノート風の十字リーダー線 */
+    .kanji-grid {
+      background-image:
+        linear-gradient(to right, transparent 49.5%, rgba(239, 68, 68, 0.22) 49.5%, rgba(239, 68, 68, 0.22) 50.5%, transparent 50.5%),
+        linear-gradient(to bottom, transparent 49.5%, rgba(239, 68, 68, 0.22) 49.5%, rgba(239, 68, 68, 0.22) 50.5%, transparent 50.5%);
+      background-size: 100% 100%;
+    }
+
+    /* 押し心地の良い立体ボタン */
+    .btn-push {
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.15s ease;
+    }
+    .btn-push:active {
+      transform: translateY(3px);
+    }
+
+    /* 漢字切り替え時のアニメーション */
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.92); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .animate-pop {
+      animation: popIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    /* 正解・不正解のフィードバックアニメーション */
+    @keyframes bounceSuccess {
+      0%, 100% { transform: scale(1); }
+      40% { transform: scale(1.06); }
+    }
+    .animate-success {
+      animation: bounceSuccess 0.35s ease;
+    }
+
+    /* カスタムスクロールバー（記録画面・単元一覧用） */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+  <!-- ==========================================================================
+       ヘッダー・モード切り替えナビゲーション
+       ========================================================================== -->
+  <header class="bg-white/95 backdrop-blur border-b border-stone-200 px-3 sm:px-6 py-2.5 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <!-- アプリタイトル -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-kyokasho text-2xl shadow-sm">
+          漢
+        </div>
+        <div>
+          <h1 class="text-base sm:text-xl font-black text-slate-800 leading-tight">小学3年生 漢字マスター</h1>
+          <p class="text-xs text-slate-500 font-medium">光村図書 教科書じゅん（全200字）</p>
+        </div>
+      </div>
+
+      <!-- 3つのモード切り替えタブ（iPadで押しやすい大きめサイズ） -->
+      <nav class="flex items-center gap-1.5 sm:gap-2 bg-stone-100 p-1.5 rounded-2xl">
+        <button id="tab-study" onclick="switchTab('study')"
+          class="btn-push px-3.5 sm:px-5 py-2.5 rounded-xl font-bold text-sm sm:text-base flex items-center gap-1.5 bg-indigo-600 text-white shadow-sm">
+          <span>📖</span><span>おぼえる</span>
+        </button>
+        <button id="tab-test" onclick="switchTab('test')"
+          class="btn-push px-3.5 sm:px-5 py-2.5 rounded-xl font-bold text-sm sm:text-base flex items-center gap-1.5 text-slate-600 hover:bg-white/70">
+          <span>✏️</span><span>テスト</span>
+        </button>
+        <button id="tab-history" onclick="switchTab('history')"
+          class="btn-push px-3.5 sm:px-5 py-2.5 rounded-xl font-bold text-sm sm:text-base flex items-center gap-1.5 text-slate-600 hover:bg-white/70">
+          <span>🏆</span><span>きろく</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       メインコンテンツ領域
+       ========================================================================== -->
+  <main class="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 py-4 flex flex-col justify-between">
+
+    <!-- ------------------------------------------------------------------------
+         1. 再生モード（おぼえる）
+         ------------------------------------------------------------------------ -->
+    <section id="view-study" class="flex-1 flex flex-col justify-between gap-3 sm:gap-4">
+      <!-- 上部コントロールバー：単元選択 & スピード設定 -->
+      <div class="bg-white rounded-3xl p-3 sm:p-4 shadow-sm border border-stone-200/80 flex flex-wrap items-center justify-between gap-3">
+        <!-- 単元ジャンプ選択 -->
+        <div class="flex items-center gap-2 flex-1 min-w-[240px]">
+          <span class="text-xs sm:text-sm font-bold text-slate-500 whitespace-nowrap">単元：</span>
+          <select id="unit-select" onchange="jumpToUnit(this.value)"
+            class="w-full bg-stone-50 border-2 border-stone-200 rounded-xl px-3 py-2 text-sm sm:text-base font-bold text-slate-700 focus:outline-none focus:border-indigo-500">
+            <!-- JSで200字の単元リストを生成 -->
+          </select>
+        </div>
+
+        <!-- 表示スピード切替（遅い・普通・早い） -->
+        <div class="flex items-center gap-1.5 bg-stone-100 p-1 rounded-2xl">
+          <span class="text-xs font-bold text-slate-500 pl-2 pr-1">スピード:</span>
+          <button onclick="setSpeed('slow')" id="speed-slow"
+            class="btn-push px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600">
+            🐢 遅い
+          </button>
+          <button onclick="setSpeed('normal')" id="speed-normal"
+            class="btn-push px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 text-white shadow-sm">
+            🐇 普通
+          </button>
+          <button onclick="setSpeed('fast')" id="speed-fast"
+            class="btn-push px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600">
+            🚀 早い
+          </button>
+        </div>
+      </div>
+
+      <!-- 中央メインカード：漢字表示 & 読み・ことば -->
+      <div class="bg-white rounded-3xl p-4 sm:p-6 shadow-md border border-stone-200/80 flex-1 flex flex-col justify-center">
+        <!-- 学期バッジ・単元名・番号 -->
+        <div class="flex items-center justify-between mb-3 sm:mb-4">
+          <div class="flex items-center gap-2">
+            <span id="study-term-badge" class="px-3 py-1 rounded-full text-xs sm:text-sm font-bold bg-pink-100 text-pink-700">
+              1学期
+            </span>
+            <span id="study-unit-name" class="text-sm sm:text-lg font-bold text-slate-700">
+              どきん
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="toggleGrid()" id="btn-grid-toggle"
+              class="px-3 py-1 rounded-xl text-xs font-bold bg-stone-100 text-slate-600 border border-stone-200">
+              マス目 ON
+            </button>
+            <span id="study-counter" class="text-sm sm:text-base font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-xl">
+              1 / 200
+            </span>
+          </div>
+        </div>
+
+        <!-- 漢字と読み方の2カラムレイアウト（iPad横画面で最適バランス） -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6 items-center my-auto">
+          <!-- 左側：大きな教科書体の漢字ボックス -->
+          <div class="md:col-span-6 flex flex-col items-center justify-center">
+            <div id="kanji-box" onclick="speakCurrentKanji()"
+              title="タップすると読み方を話します"
+              class="kanji-grid cursor-pointer w-52 h-52 sm:w-64 sm:h-64 md:w-72 md:h-72 rounded-3xl border-4 border-indigo-200 bg-amber-50/30 flex items-center justify-center shadow-inner relative active:scale-95 transition-transform">
+              <span id="study-kanji" class="font-kyokasho text-[130px] sm:text-[165px] md:text-[185px] leading-none text-slate-900 select-none">
+                詩
+              </span>
+              <span class="absolute bottom-2.5 right-3 text-xs font-bold text-indigo-400 flex items-center gap-1">
+                🔊 タップで音声
+              </span>
+            </div>
+          </div>
+
+          <!-- 右側：音読み・訓読み・ことばの例 -->
+          <div class="md:col-span-6 flex flex-col gap-3 sm:gap-4">
+            <!-- 音読み -->
+            <div class="bg-sky-50/80 border-2 border-sky-100 rounded-2xl p-3.5 sm:p-4">
+              <div class="text-xs sm:text-sm font-bold text-sky-700 mb-1">音読み（おんよみ）</div>
+              <div id="study-on" class="font-kyokasho text-2xl sm:text-3xl font-bold text-slate-800">
+                シ
+              </div>
+            </div>
+
+            <!-- 訓読み -->
+            <div class="bg-emerald-50/80 border-2 border-emerald-100 rounded-2xl p-3.5 sm:p-4">
+              <div class="text-xs sm:text-sm font-bold text-emerald-700 mb-1">訓読み（くんよみ）</div>
+              <div id="study-kun" class="font-kyokasho text-2xl sm:text-3xl font-bold text-slate-800">
+                —
+              </div>
+            </div>
+
+            <!-- つかい方の例 -->
+            <div class="bg-amber-50/80 border-2 border-amber-100 rounded-2xl p-3.5 sm:p-4">
+              <div class="text-xs sm:text-sm font-bold text-amber-700 mb-1">ことばの例</div>
+              <div id="study-example" class="font-kyokasho text-xl sm:text-2xl font-bold text-slate-800">
+                詩をつくる
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 下部操作ボタン & シークバー -->
+      <div class="bg-white rounded-3xl p-3 sm:p-4 shadow-sm border border-stone-200/80 flex flex-col gap-3">
+        <!-- プログレススライダー -->
+        <div class="flex items-center gap-3 px-1">
+          <span class="text-xs font-bold text-slate-400">1</span>
+          <input id="study-slider" type="range" min="0" max="199" value="0" oninput="onSliderInput(this.value)"
+            class="w-full h-3 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+          <span class="text-xs font-bold text-slate-400">200</span>
+        </div>
+
+        <!-- 大きな再生コントロールボタン -->
+        <div class="grid grid-cols-4 gap-2 sm:gap-3">
+          <button onclick="prevKanji()"
+            class="btn-push py-3.5 sm:py-4 rounded-2xl bg-stone-100 hover:bg-stone-200 text-slate-700 font-black text-base sm:text-lg flex items-center justify-center gap-1 shadow-sm">
+            <span>◀</span><span>まえ</span>
+          </button>
+
+          <button id="btn-play-toggle" onclick="toggleAutoPlay()"
+            class="btn-push col-span-2 py-3.5 sm:py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-lg sm:text-xl flex items-center justify-center gap-2 shadow-md">
+            <span id="play-icon">▶</span>
+            <span id="play-label">自動さいせい</span>
+          </button>
+
+          <button onclick="nextKanji()"
+            class="btn-push py-3.5 sm:py-4 rounded-2xl bg-stone-100 hover:bg-stone-200 text-slate-700 font-black text-base sm:text-lg flex items-center justify-center gap-1 shadow-sm">
+            <span>つぎ</span><span>▶</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------------------
+         2. テストモード（4択クイズ）
+         ------------------------------------------------------------------------ -->
+    <section id="view-test" class="hidden flex-1 flex flex-col justify-center">
+
+      <!-- 2-A. テスト開始メニュー画面 -->
+      <div id="test-start-screen" class="bg-white rounded-3xl p-6 sm:p-10 shadow-md border border-stone-200/80 max-w-2xl mx-auto w-full text-center flex flex-col gap-6">
+        <div>
+          <div class="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-amber-100 text-3xl mb-3">
+            ✏️
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-800">漢字の読み方 4たくテスト</h2>
+          <p class="text-sm sm:text-base text-slate-500 mt-2 font-medium">
+            正しい読み方を4つの中からえらぼう！<br>
+            テストが終わると、せいかいした数が日付といっしょにきろくされます。
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- ランダム20問ボタン -->
+          <button onclick="startTest('random20')"
+            class="btn-push p-6 rounded-3xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-lg flex flex-col items-center gap-2 text-center">
+            <span class="text-4xl">🎲</span>
+            <span class="text-xl sm:text-2xl font-black">ランダム 20問</span>
+            <span class="text-xs sm:text-sm text-indigo-100 font-medium">200字の中からランダムに出題！</span>
+          </button>
+
+          <!-- すべての漢字200問ボタン -->
+          <button onclick="startTest('all200')"
+            class="btn-push p-6 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg flex flex-col items-center gap-2 text-center">
+            <span class="text-4xl">👑</span>
+            <span class="text-xl sm:text-2xl font-black">すべての漢字 200問</span>
+            <span class="text-xs sm:text-sm text-emerald-100 font-medium">3年生の漢字ぜんぶにちょうせん！</span>
+          </button>
+        </div>
+
+        <!-- 200問モードの出題順オプション -->
+        <div class="bg-stone-50 rounded-2xl p-3.5 border border-stone-200 flex items-center justify-center gap-3">
+          <span class="text-xs sm:text-sm font-bold text-slate-600">「すべての漢字」の順番：</span>
+          <label class="inline-flex items-center gap-1.5 cursor-pointer text-sm font-bold text-slate-700">
+            <input type="radio" name="all200-order" value="textbook" checked class="w-4 h-4 accent-emerald-600">
+            <span>教科書じゅん</span>
+          </label>
+          <label class="inline-flex items-center gap-1.5 cursor-pointer text-sm font-bold text-slate-700">
+            <input type="radio" name="all200-order" value="shuffle" class="w-4 h-4 accent-emerald-600">
+            <span>シャッフル</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 2-B. テスト出題中画面 -->
+      <div id="test-quiz-screen" class="hidden flex-1 flex flex-col justify-between gap-4">
+        <!-- 上部ステータスバー -->
+        <div class="bg-white rounded-3xl p-3 sm:p-4 shadow-sm border border-stone-200/80 flex items-center justify-between gap-3">
+          <button onclick="confirmQuitTest()"
+            class="btn-push px-3.5 py-2 rounded-xl bg-stone-100 text-slate-600 text-xs sm:text-sm font-bold">
+            ✕ やめる
+          </button>
+
+          <div class="flex-1 max-w-md mx-2">
+            <div class="flex justify-between text-xs sm:text-sm font-bold text-slate-600 mb-1">
+              <span id="quiz-mode-label">ランダム20問</span>
+              <span id="quiz-progress-text">第 1 問 / 20 問</span>
+            </div>
+            <div class="w-full h-3 bg-stone-200 rounded-full overflow-hidden">
+              <div id="quiz-progress-bar" class="h-full bg-indigo-600 transition-all duration-300" style="width: 5%"></div>
+            </div>
+          </div>
+
+          <div class="bg-amber-100 text-amber-800 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black">
+            せいかい: <span id="quiz-score-live">0</span>
+          </div>
+        </div>
+
+        <!-- 問題カード -->
+        <div class="bg-white rounded-3xl p-5 sm:p-8 shadow-md border border-stone-200/80 flex-1 flex flex-col items-center justify-center text-center relative">
+          <p class="text-sm sm:text-base font-bold text-slate-500 mb-2">
+            【　】の 漢字の 読み方 は どれかな？
+          </p>
+
+          <!-- 大きな教科書体の漢字 -->
+          <div class="kanji-grid w-40 h-40 sm:w-48 sm:h-48 rounded-3xl border-4 border-amber-200 bg-amber-50/30 flex items-center justify-center mb-4">
+            <span id="quiz-kanji" class="font-kyokasho text-[105px] sm:text-[130px] leading-none text-slate-900">
+              詩
+            </span>
+          </div>
+
+          <!-- 文脈ヒント（読みを一意にするため） -->
+          <div id="quiz-prompt" class="font-kyokasho text-2xl sm:text-3xl font-bold text-slate-800 bg-stone-100 px-6 py-2.5 rounded-2xl">
+            【詩】をつくる
+          </div>
+
+          <!-- 回答後の結果フィードバックオーバーレイバー -->
+          <div id="quiz-feedback" class="hidden mt-4 w-full max-w-xl rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3 text-left">
+              <span id="feedback-icon" class="text-3xl sm:text-4xl">⭕</span>
+              <div>
+                <div id="feedback-title" class="text-lg sm:text-xl font-black">せいかい！</div>
+                <div id="feedback-detail" class="text-xs sm:text-sm font-bold opacity-90">音：シ ／ 訓：—</div>
+              </div>
+            </div>
+            <button id="btn-next-question" onclick="nextQuestion()"
+              class="btn-push w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-800 text-white font-black text-base shadow-sm">
+              つぎへ ▶
+            </button>
+          </div>
+        </div>
+
+        <!-- 4択ボタン（2x2グリッド・iPadで押しやすい大サイズ） -->
+        <div id="quiz-choices" class="grid grid-cols-2 gap-3 sm:gap-4">
+          <button onclick="submitAnswer(0)" class="choice-btn btn-push bg-white hover:bg-indigo-50 border-2 border-stone-200 rounded-3xl py-5 sm:py-6 px-4 font-kyokasho text-2xl sm:text-3xl font-bold text-slate-800 shadow-sm"></button>
+          <button onclick="submitAnswer(1)" class="choice-btn btn-push bg-white hover:bg-indigo-50 border-2 border-stone-200 rounded-3xl py-5 sm:py-6 px-4 font-kyokasho text-2xl sm:text-3xl font-bold text-slate-800 shadow-sm"></button>
+          <button onclick="submitAnswer(2)" class="choice-btn btn-push bg-white hover:bg-indigo-50 border-2 border-stone-200 rounded-3xl py-5 sm:py-6 px-4 font-kyokasho text-2xl sm:text-3xl font-bold text-slate-800 shadow-sm"></button>
+          <button onclick="submitAnswer(3)" class="choice-btn btn-push bg-white hover:bg-indigo-50 border-2 border-stone-200 rounded-3xl py-5 sm:py-6 px-4 font-kyokasho text-2xl sm:text-3xl font-bold text-slate-800 shadow-sm"></button>
+        </div>
+      </div>
+
+      <!-- 2-C. テスト結果画面 -->
+      <div id="test-result-screen" class="hidden bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-stone-200/80 max-w-3xl mx-auto w-full flex flex-col gap-5">
+        <div class="text-center">
+          <div id="result-trophy" class="text-5xl sm:text-6xl mb-2">🎉</div>
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-800">テストしゅうりょう！</h2>
+          <p id="result-date-text" class="text-sm font-bold text-slate-500 mt-1">2026年11月24日</p>
+
+          <div class="mt-4 inline-flex items-baseline gap-2 bg-amber-50 border-2 border-amber-200 px-8 py-4 rounded-3xl">
+            <span id="result-score" class="text-4xl sm:text-5xl font-black text-amber-600">18</span>
+            <span class="text-xl sm:text-2xl font-bold text-slate-600">/ <span id="result-total">20</span> 問 せいかい！</span>
+          </div>
+
+          <div id="result-save-status" class="mt-2 text-xs sm:text-sm font-bold text-emerald-600">
+            ✅ きろくに保存しました！
+          </div>
+        </div>
+
+        <!-- 間違えた漢字の復習エリア -->
+        <div id="wrong-kanji-container" class="hidden bg-rose-50/70 border border-rose-200 rounded-2xl p-4">
+          <h3 class="text-sm sm:text-base font-black text-rose-700 mb-2">
+            📝 まちがえた漢字をふくしゅうしよう（タップで読み上げ）
+          </h3>
+          <div id="wrong-kanji-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+            <!-- JSで間違えた漢字カードを生成 -->
+          </div>
+        </div>
+
+        <!-- アクションボタン -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <button onclick="resetToTestMenu()"
+            class="btn-push py-4 rounded-2xl bg-indigo-600 text-white font-black text-base shadow-sm">
+            🔄 もういちどテスト
+          </button>
+          <button onclick="switchTab('history')"
+            class="btn-push py-4 rounded-2xl bg-amber-500 text-white font-black text-base shadow-sm">
+            🏆 きろくを見る
+          </button>
+          <button onclick="switchTab('study')"
+            class="btn-push py-4 rounded-2xl bg-stone-100 text-slate-700 font-black text-base">
+            📖 おぼえるにもどる
+          </button>
+        </div>
+      </div>
+
+      <!-- 途中終了確認用カスタムモーダル（alert/confirm不使用） -->
+      <div id="quit-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-xl text-center">
+          <div class="text-4xl mb-2">🤔</div>
+          <h3 class="text-xl font-black text-slate-800 mb-2">テストをやめますか？</h3>
+          <p class="text-sm text-slate-500 font-medium mb-5">とちゅうでやめると、今回のせいかい数はきろくされません。</p>
+          <div class="grid grid-cols-2 gap-3">
+            <button onclick="closeQuitModal()"
+              class="btn-push py-3 rounded-2xl bg-stone-100 text-slate-700 font-bold">
+              つづける
+            </button>
+            <button onclick="executeQuitTest()"
+              class="btn-push py-3 rounded-2xl bg-rose-500 text-white font-bold">
+              やめる
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ------------------------------------------------------------------------
+         3. きろく画面（日付ごとの正解数履歴）
+         ------------------------------------------------------------------------ -->
+    <section id="view-history" class="hidden flex-1 flex flex-col gap-4">
+      <!-- サマリーカード -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div class="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-stone-200/80 flex items-center gap-4">
+          <div class="w-14 h-14 rounded-2xl bg-indigo-100 text-2xl flex items-center justify-center">🎲</div>
+          <div>
+            <div class="text-xs sm:text-sm font-bold text-slate-500">ランダム20問 最高きろく</div>
+            <div id="best-random20" class="text-2xl sm:text-3xl font-black text-indigo-600">まだきろくがありません</div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-stone-200/80 flex items-center gap-4">
+          <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-2xl flex items-center justify-center">👑</div>
+          <div>
+            <div class="text-xs sm:text-sm font-bold text-slate-500">すべての漢字200問 最高きろく</div>
+            <div id="best-all200" class="text-2xl sm:text-3xl font-black text-emerald-600">まだきろくがありません</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 履歴リストカード -->
+      <div class="bg-white rounded-3xl p-4 sm:p-6 shadow-md border border-stone-200/80 flex-1 flex flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h2 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">
+            <span>📅</span><span>日付ごとのテストきろく</span>
+          </h2>
+
+          <!-- フィルターボタン -->
+          <div class="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
+            <button onclick="setHistoryFilter('all')" id="filter-all"
+              class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 shadow-xs">
+              すべて
+            </button>
+            <button onclick="setHistoryFilter('random20')" id="filter-random20"
+              class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold text-slate-600">
+              20問
+            </button>
+            <button onclick="setHistoryFilter('all200')" id="filter-all200"
+              class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold text-slate-600">
+              200問
+            </button>
+          </div>
+        </div>
+
+        <div id="history-list" class="flex-1 overflow-y-auto space-y-2.5 max-h-[55vh] pr-1">
+          <!-- JSで日付ごとの記録カードを描画 -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==========================================================================
+       JavaScript ロジック（光村図書200字データ・音声再生・4択クイズ・Firestore保存）
+       ========================================================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    /* --------------------------------------------------------------------------
+       1. iPad向けズーム（拡大）完全防止イベントリスナー
+       -------------------------------------------------------------------------- */
+    document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
+
+    /* --------------------------------------------------------------------------
+       2. 光村図書 小学3年生 国語 教科書 新出漢字 全200字データベース
+          （1学期95字・2学期76字・3学期29字 教科書登場順）
+       -------------------------------------------------------------------------- */
+    const KANJI_DATA = [
+      // === 1学期（95字） ===
+      // どきん (2字)
+      { kanji: "詩", term: 1, unit: "どきん", on: "シ", kun: "—", speech: "し", example: "詩をつくる", prompt: "【詩】をつくる", answer: "し", okuri: "" },
+      { kanji: "習", term: 1, unit: "どきん", on: "シュウ", kun: "なら（う）", speech: "しゅう、ならう", example: "学習する・習う", prompt: "ピアノを【習】う", answer: "ならう", okuri: "う" },
+      // きつつきの商売 (10字)
+      { kanji: "商", term: 1, unit: "きつつきの商売", on: "ショウ", kun: "あきな（う）", speech: "しょう、あきなう", example: "商売・商店", prompt: "【商】売をする", answer: "しょう", okuri: "" },
+      { kanji: "動", term: 1, unit: "きつつきの商売", on: "ドウ", kun: "うご（く）・うご（かす）", speech: "どう、うごく", example: "動物・動く", prompt: "体が【動】く", answer: "うごく", okuri: "く" },
+      { kanji: "物", term: 1, unit: "きつつきの商売", on: "ブツ・モツ", kun: "もの", speech: "ぶつ、もつ、もの", example: "生き物・動物", prompt: "生き【物】", answer: "もの", okuri: "" },
+      { kanji: "開", term: 1, unit: "きつつきの商売", on: "カイ", kun: "ひら（く）・あ（ける）", speech: "かい、ひらく、あける", example: "まどを開ける・開店", prompt: "まどを【開】ける", answer: "あける", okuri: "ける" },
+      { kanji: "族", term: 1, unit: "きつつきの商売", on: "ゾク", kun: "—", speech: "ぞく", example: "家族・水族館", prompt: "か【族】", answer: "ぞく", okuri: "" },
+      { kanji: "葉", term: 1, unit: "きつつきの商売", on: "ヨウ", kun: "は", speech: "よう、は", example: "木の葉・落ち葉", prompt: "木の【葉】", answer: "は", okuri: "" },
+      { kanji: "実", term: 1, unit: "きつつきの商売", on: "ジツ", kun: "み・みの（る）", speech: "じつ、み、みのる", example: "木の実・果実", prompt: "木に【実】がなる", answer: "み", okuri: "" },
+      { kanji: "所", term: 1, unit: "きつつきの商売", on: "ショ", kun: "ところ", speech: "しょ、ところ", example: "場所・近所", prompt: "ば【所】", answer: "しょ", okuri: "" },
+      { kanji: "面", term: 1, unit: "きつつきの商売", on: "メン", kun: "おも・おもて・つら", speech: "めん、おもて", example: "地面・お面", prompt: "地【面】", answer: "めん", okuri: "" },
+      { kanji: "登", term: 1, unit: "きつつきの商売", on: "トウ・ト", kun: "のぼ（る）", speech: "とう、のぼる", example: "山に登る・登山", prompt: "山に【登】る", answer: "のぼる", okuri: "る" },
+      // 図書館たんていだん (3字)
+      { kanji: "事", term: 1, unit: "図書館たんていだん", on: "ジ・ズ", kun: "こと", speech: "じ、こと", example: "大事な事・火事", prompt: "だいじな【事】", answer: "こと", okuri: "" },
+      { kanji: "館", term: 1, unit: "図書館たんていだん", on: "カン", kun: "やかた", speech: "かん、やかた", example: "図書館・体育館", prompt: "図書【館】", answer: "かん", okuri: "" },
+      { kanji: "号", term: 1, unit: "図書館たんていだん", on: "ゴウ", kun: "—", speech: "ごう", example: "番号・信号", prompt: "ばん【号】", answer: "ごう", okuri: "" },
+      // 国語辞典を使おう (13字)
+      { kanji: "使", term: 1, unit: "国語辞典を使おう", on: "シ", kun: "つか（う）", speech: "し、つかう", example: "はさみを使う", prompt: "はさみを【使】う", answer: "つかう", okuri: "う" },
+      { kanji: "深", term: 1, unit: "国語辞典を使おう", on: "シン", kun: "ふか（い）・ふか（まる）", speech: "しん、ふかい", example: "深い海・深夜", prompt: "【深】い海", answer: "ふかい", okuri: "い" },
+      { kanji: "意", term: 1, unit: "国語辞典を使おう", on: "イ", kun: "—", speech: "い", example: "意味・注意", prompt: "【意】味をしらべる", answer: "い", okuri: "" },
+      { kanji: "味", term: 1, unit: "国語辞典を使おう", on: "ミ", kun: "あじ・あじ（わう）", speech: "み、あじ", example: "おいしい味・意味", prompt: "おいしい【味】", answer: "あじ", okuri: "" },
+      { kanji: "漢", term: 1, unit: "国語辞典を使おう", on: "カン", kun: "—", speech: "かん", example: "漢字", prompt: "【漢】字の練習", answer: "かん", okuri: "" },
+      { kanji: "調", term: 1, unit: "国語辞典を使おう", on: "チョウ", kun: "しら（べる）・ととの（う）", speech: "ちょう、しらべる", example: "辞典で調べる", prompt: "辞典で【調】べる", answer: "しらべる", okuri: "べる" },
+      { kanji: "由", term: 1, unit: "国語辞典を使おう", on: "ユ・ユウ・ユイ", kun: "よし", speech: "ゆ、ゆう", example: "理由・自由", prompt: "り【由】を話す", answer: "ゆう", okuri: "" },
+      { kanji: "温", term: 1, unit: "国語辞典を使おう", on: "オン", kun: "あたた（か）・あたた（かい）", speech: "おん、あたたかい", example: "温かい・温度", prompt: "【温】かいスープ", answer: "あたたかい", okuri: "かい" },
+      { kanji: "酒", term: 1, unit: "国語辞典を使おう", on: "シュ", kun: "さけ・さか", speech: "しゅ、さけ", example: "お酒・甘酒", prompt: "お【酒】", answer: "さけ", okuri: "" },
+      { kanji: "問", term: 1, unit: "国語辞典を使おう", on: "モン", kun: "と（う）・と（い）", speech: "もん、とう", example: "問題・質問", prompt: "【問】題をとく", answer: "もん", okuri: "" },
+      { kanji: "題", term: 1, unit: "国語辞典を使おう", on: "ダイ", kun: "—", speech: "だい", example: "宿題・問題", prompt: "しゅく【題】", answer: "だい", okuri: "" },
+      { kanji: "章", term: 1, unit: "国語辞典を使おう", on: "ショウ", kun: "—", speech: "しょう", example: "文章・第一章", prompt: "ぶん【章】を書く", answer: "しょう", okuri: "" },
+      { kanji: "平", term: 1, unit: "国語辞典を使おう", on: "ヘイ・ビョウ", kun: "たい（ら）・ひら", speech: "へい、びょう、たいら", example: "平らな道・平和", prompt: "【平】らな道", answer: "たいら", okuri: "ら" },
+      // 漢字の音と訓 (11字)
+      { kanji: "次", term: 1, unit: "漢字の音と訓", on: "ジ・シ", kun: "つぎ・つ（ぐ）", speech: "じ、し、つぎ", example: "次のページ・目次", prompt: "【次】のページ", answer: "つぎ", okuri: "" },
+      { kanji: "昔", term: 1, unit: "漢字の音と訓", on: "セキ・シャク", kun: "むかし", speech: "せき、むかし", example: "昔話・大昔", prompt: "【昔】話を読む", answer: "むかし", okuri: "" },
+      { kanji: "表", term: 1, unit: "漢字の音と訓", on: "ヒョウ", kun: "おもて・あらわ（す）", speech: "ひょう、おもて、あらわす", example: "表と裏・発表", prompt: "【表】と裏", answer: "おもて", okuri: "" },
+      { kanji: "発", term: 1, unit: "漢字の音と訓", on: "ハツ・ホツ", kun: "—", speech: "はつ、ほつ", example: "発表・出発", prompt: "【発】表する", answer: "はっ", okuri: "" },
+      { kanji: "県", term: 1, unit: "漢字の音と訓", on: "ケン", kun: "—", speech: "けん", example: "都道府県・県庁", prompt: "【県】の地図", answer: "けん", okuri: "" },
+      { kanji: "有", term: 1, unit: "漢字の音と訓", on: "ユウ・ウ", kun: "あ（る）", speech: "ゆう、ある", example: "有名な山", prompt: "【有】名な山", answer: "ゆう", okuri: "" },
+      { kanji: "氷", term: 1, unit: "漢字の音と訓", on: "ヒョウ", kun: "こおり・ひ", speech: "ひょう、こおり", example: "氷水・かき氷", prompt: "冷たい【氷】", answer: "こおり", okuri: "" },
+      { kanji: "秒", term: 1, unit: "漢字の音と訓", on: "ビョウ", kun: "—", speech: "びょう", example: "十秒・秒針", prompt: "十【秒】数える", answer: "びょう", okuri: "" },
+      { kanji: "農", term: 1, unit: "漢字の音と訓", on: "ノウ", kun: "—", speech: "のう", example: "農家・農業", prompt: "【農】家のお仕事", answer: "のう", okuri: "" },
+      { kanji: "球", term: 1, unit: "漢字の音と訓", on: "キュウ", kun: "たま", speech: "きゅう、たま", example: "野球・地球", prompt: "や【球】をする", answer: "きゅう", okuri: "" },
+      { kanji: "局", term: 1, unit: "漢字の音と訓", on: "キョク", kun: "—", speech: "きょく", example: "郵便局・放送局", prompt: "ゆうびん【局】", answer: "きょく", okuri: "" },
+      // もっと知りたい、友だちのこと (7字)
+      { kanji: "決", term: 1, unit: "もっと知りたい、友だちのこと", on: "ケツ", kun: "き（める）・き（まる）", speech: "けつ、きめる", example: "ルールを決める", prompt: "ルールを【決】める", answer: "きめる", okuri: "める" },
+      { kanji: "整", term: 1, unit: "もっと知りたい、友だちのこと", on: "セイ", kun: "ととの（える）・ととの（う）", speech: "せい、ととのえる", example: "整理整とん", prompt: "【整】理整とん", answer: "せい", okuri: "" },
+      { kanji: "相", term: 1, unit: "もっと知りたい、友だちのこと", on: "ソウ・ショウ", kun: "あい", speech: "そう、しょう、あい", example: "相談する・相手", prompt: "【相】談する", answer: "そう", okuri: "" },
+      { kanji: "落", term: 1, unit: "もっと知りたい、友だちのこと", on: "ラク", kun: "お（ちる）・お（とす）", speech: "らく、おちる", example: "木の葉が落ちる", prompt: "木の葉が【落】ちる", answer: "おちる", okuri: "ちる" },
+      { kanji: "着", term: 1, unit: "もっと知りたい、友だちのこと", on: "チャク・ジャク", kun: "き（る）・つ（く）", speech: "ちゃく、きる、つく", example: "服を着る・到着", prompt: "服を【着】る", answer: "きる", okuri: "る" },
+      { kanji: "洋", term: 1, unit: "もっと知りたい、友だちのこと", on: "ヨウ", kun: "—", speech: "よう", example: "太平洋・洋服", prompt: "たいへい【洋】", answer: "よう", okuri: "" },
+      { kanji: "服", term: 1, unit: "もっと知りたい、友だちのこと", on: "フク", kun: "—", speech: "ふく", example: "洋服・制服", prompt: "よう【服】", answer: "ふく", okuri: "" },
+      // こまを楽しむ (11字)
+      { kanji: "遊", term: 1, unit: "こまを楽しむ", on: "ユウ・ユ", kun: "あそ（ぶ）", speech: "ゆう、あそぶ", example: "公園で遊ぶ", prompt: "公園で【遊】ぶ", answer: "あそぶ", okuri: "ぶ" },
+      { kanji: "全", term: 1, unit: "こまを楽しむ", on: "ゼン", kun: "まった（く）・すべ（て）", speech: "ぜん、まったく、すべて", example: "全員・全部", prompt: "【全】員集合", answer: "ぜん", okuri: "" },
+      { kanji: "短", term: 1, unit: "こまを楽しむ", on: "タン", kun: "みじか（い）", speech: "たん、みじかい", example: "短いえんぴつ", prompt: "【短】いえんぴつ", answer: "みじかい", okuri: "い" },
+      { kanji: "世", term: 1, unit: "こまを楽しむ", on: "セイ・セ", kun: "よ", speech: "せい、せ、よ", example: "世界・世の中", prompt: "【世】界の国の人々", answer: "せ", okuri: "" },
+      { kanji: "界", term: 1, unit: "こまを楽しむ", on: "カイ", kun: "—", speech: "かい", example: "世界地図", prompt: "世【界】地図", answer: "かい", okuri: "" },
+      { kanji: "横", term: 1, unit: "こまを楽しむ", on: "オウ", kun: "よこ", speech: "おう、よこ", example: "たてと横・横断", prompt: "たてと【横】", answer: "よこ", okuri: "" },
+      { kanji: "指", term: 1, unit: "こまを楽しむ", on: "シ", kun: "ゆび・さ（す）", speech: "し、ゆび、さす", example: "手の指・指さす", prompt: "手の【指】", answer: "ゆび", okuri: "" },
+      { kanji: "鉄", term: 1, unit: "こまを楽しむ", on: "テツ", kun: "—", speech: "てつ", example: "鉄ぼう・鉄道", prompt: "【鉄】ぼう", answer: "てつ", okuri: "" },
+      { kanji: "安", term: 1, unit: "こまを楽しむ", on: "アン", kun: "やす（い）", speech: "あん、やすい", example: "安心・安全", prompt: "【安】心する", answer: "あん", okuri: "" },
+      { kanji: "定", term: 1, unit: "こまを楽しむ", on: "テイ・ジョウ", kun: "さだ（める）", speech: "てい、さだめる", example: "予定・定規", prompt: "よ【定】を立てる", answer: "てい", okuri: "" },
+      { kanji: "様", term: 1, unit: "こまを楽しむ", on: "ヨウ", kun: "さま", speech: "よう、さま", example: "様子・王様", prompt: "【様】子を見る", answer: "よう", okuri: "" },
+      // 気もちをこめて「来てください」 (6字)
+      { kanji: "運", term: 1, unit: "気もちをこめて「来てください」", on: "ウン", kun: "はこ（ぶ）", speech: "うん、はこぶ", example: "にもつを運ぶ・運動", prompt: "にもつを【運】ぶ", answer: "はこぶ", okuri: "ぶ" },
+      { kanji: "予", term: 1, unit: "気もちをこめて「来てください」", on: "ヨ", kun: "—", speech: "よ", example: "予定表・天気予報", prompt: "【予】定表", answer: "よ", okuri: "" },
+      { kanji: "返", term: 1, unit: "気もちをこめて「来てください」", on: "ヘン", kun: "かえ（す）・かえ（る）", speech: "へん、かえす", example: "本を返す・返事", prompt: "本を【返】す", answer: "かえす", okuri: "す" },
+      { kanji: "緑", term: 1, unit: "気もちをこめて「来てください」", on: "リョク・ロク", kun: "みどり", speech: "りょく、みどり", example: "緑色・新緑", prompt: "【緑】色の葉", answer: "みどり", okuri: "" },
+      { kanji: "送", term: 1, unit: "気もちをこめて「来てください」", on: "ソウ", kun: "おく（る）", speech: "そう、おくる", example: "手紙を送る・見送り", prompt: "手紙を【送】る", answer: "おくる", okuri: "る" },
+      { kanji: "住", term: 1, unit: "気もちをこめて「来てください」", on: "ジュウ", kun: "す（む）・す（まう）", speech: "じゅう、すむ", example: "町に住む・住所", prompt: "町に【住】む", answer: "すむ", okuri: "む" },
+      // まいごのかぎ (11字)
+      { kanji: "感", term: 1, unit: "まいごのかぎ", on: "カン", kun: "—", speech: "かん", example: "感想・感動", prompt: "【感】想文", answer: "かん", okuri: "" },
+      { kanji: "想", term: 1, unit: "まいごのかぎ", on: "ソウ・ソ", kun: "—", speech: "そう", example: "感想・想像", prompt: "感【想】を話す", answer: "そう", okuri: "" },
+      { kanji: "具", term: 1, unit: "まいごのかぎ", on: "グ", kun: "—", speech: "ぐ", example: "道具・絵の具", prompt: "どう【具】箱", answer: "ぐ", okuri: "" },
+      { kanji: "悪", term: 1, unit: "まいごのかぎ", on: "アク・オ", kun: "わる（い）", speech: "あく、わるい", example: "気もちが悪い", prompt: "気もちが【悪】い", answer: "わるい", okuri: "い" },
+      { kanji: "拾", term: 1, unit: "まいごのかぎ", on: "シュウ・ジュウ", kun: "ひろ（う）", speech: "しゅう、ひろう", example: "おちばを拾う", prompt: "おちばを【拾】う", answer: "ひろう", okuri: "う" },
+      { kanji: "持", term: 1, unit: "まいごのかぎ", on: "ジ", kun: "も（つ）", speech: "じ、もつ", example: "かばんを持つ", prompt: "かばんを【持】つ", answer: "もつ", okuri: "つ" },
+      { kanji: "向", term: 1, unit: "まいごのかぎ", on: "コウ", kun: "む（く）・む（かう）", speech: "こう、むく、むかう", example: "前を向く・向こう", prompt: "前を【向】く", answer: "むく", okuri: "く" },
+      { kanji: "坂", term: 1, unit: "まいごのかぎ", on: "ハン", kun: "さか", speech: "はん、さか", example: "急な坂道", prompt: "急な【坂】道", answer: "さか", okuri: "" },
+      { kanji: "悲", term: 1, unit: "まいごのかぎ", on: "ヒ", kun: "かな（しい）・かな（しむ）", speech: "ひ、かなしい", example: "悲しい話", prompt: "【悲】しい話", answer: "かなしい", okuri: "しい" },
+      { kanji: "岸", term: 1, unit: "まいごのかぎ", on: "ガン", kun: "きし", speech: "がん、きし", example: "川の岸・海岸", prompt: "川の【岸】", answer: "きし", okuri: "" },
+      { kanji: "路", term: 1, unit: "まいごのかぎ", on: "ロ", kun: "じ", speech: "ろ、じ", example: "道路・線路", prompt: "どう【路】をわたる", answer: "ろ", okuri: "" },
+      // 俳句を楽しもう (2字)
+      { kanji: "区", term: 1, unit: "俳句を楽しもう", on: "ク", kun: "—", speech: "く", example: "区別・地区", prompt: "【区】別する", answer: "く", okuri: "" },
+      { kanji: "陽", term: 1, unit: "俳句を楽しもう", on: "ヨウ", kun: "—", speech: "よう", example: "太陽", prompt: "たい【陽】", answer: "よう", okuri: "" },
+      // こそあど言葉を使いこなそう (5字)
+      { kanji: "泳", term: 1, unit: "こそあど言葉を使いこなそう", on: "エイ", kun: "およ（ぐ）", speech: "えい、およぐ", example: "プールで泳ぐ・水泳", prompt: "プールで【泳】ぐ", answer: "およぐ", okuri: "ぐ" },
+      { kanji: "練", term: 1, unit: "こそあど言葉を使いこなそう", on: "レン", kun: "ね（る）", speech: "れん、ねる", example: "練習する", prompt: "【練】習する", answer: "れん", okuri: "" },
+      { kanji: "助", term: 1, unit: "こそあど言葉を使いこなそう", on: "ジョ", kun: "たす（ける）・たす（かる）", speech: "じょ、たすける", example: "友だちを助ける", prompt: "友だちを【助】ける", answer: "たすける", okuri: "ける" },
+      { kanji: "童", term: 1, unit: "こそあど言葉を使いこなそう", on: "ドウ", kun: "わらべ", speech: "どう、わらべ", example: "童話・児童", prompt: "【童】話を読む", answer: "どう", okuri: "" },
+      { kanji: "申", term: 1, unit: "こそあど言葉を使いこなそう", on: "シン", kun: "もう（す）", speech: "しん、もうす", example: "名前を申す・申しこみ", prompt: "名前を【申】す", answer: "もうす", okuri: "す" },
+      // 仕事のくふう、見つけたよ (9字)
+      { kanji: "仕", term: 1, unit: "仕事のくふう、見つけたよ", on: "シ・ジ", kun: "つか（える）", speech: "し、じ、つかえる", example: "お仕事・仕方", prompt: "お【仕】事", answer: "し", okuri: "" },
+      { kanji: "身", term: 1, unit: "仕事のくふう、見つけたよ", on: "シン", kun: "み", speech: "しん、み", example: "身長・中身", prompt: "【身】長をはかる", answer: "しん", okuri: "" },
+      { kanji: "品", term: 1, unit: "仕事のくふう、見つけたよ", on: "ヒン", kun: "しな", speech: "ひん、しな", example: "品物・作品", prompt: "【品】物", answer: "しな", okuri: "" },
+      { kanji: "客", term: 1, unit: "仕事のくふう、見つけたよ", on: "キャク・カク", kun: "—", speech: "きゃく、かく", example: "お客さま・観客", prompt: "お【客】さま", answer: "きゃく", okuri: "" },
+      { kanji: "終", term: 1, unit: "仕事のくふう、見つけたよ", on: "シュウ", kun: "お（わる）・お（える）", speech: "しゅう、おわる", example: "授業が終わる", prompt: "授業が【終】わる", answer: "おわる", okuri: "わる" },
+      { kanji: "銀", term: 1, unit: "仕事のくふう、見つけたよ", on: "ギン", kun: "—", speech: "ぎん", example: "金と銀・銀行", prompt: "金と【銀】", answer: "ぎん", okuri: "" },
+      { kanji: "去", term: 1, unit: "仕事のくふう、見つけたよ", on: "キョ・コ", kun: "さ（る）", speech: "きょ、こ、さる", example: "去年・過去", prompt: "【去】年", answer: "きょ", okuri: "" },
+      { kanji: "筆", term: 1, unit: "仕事のくふう、見つけたよ", on: "ヒツ", kun: "ふで", speech: "ひつ、ふで", example: "筆箱・えん筆", prompt: "【筆】箱", answer: "ふで", okuri: "" },
+      { kanji: "式", term: 1, unit: "仕事のくふう、見つけたよ", on: "シキ", kun: "—", speech: "しき", example: "卒業式・計算の式", prompt: "そつぎょう【式】", answer: "しき", okuri: "" },
+      // 鳥になったきょうりゅうの話 (5字)
+      { kanji: "植", term: 1, unit: "鳥になったきょうりゅうの話", on: "ショク", kun: "う（える）・う（わる）", speech: "しょく、うえる", example: "花を植える・植物", prompt: "花を【植】える", answer: "うえる", okuri: "える" },
+      { kanji: "集", term: 1, unit: "鳥になったきょうりゅうの話", on: "シュウ", kun: "あつ（まる）・あつ（める）", speech: "しゅう、あつまる", example: "みんなで集まる", prompt: "みんなで【集】まる", answer: "あつまる", okuri: "まる" },
+      { kanji: "化", term: 1, unit: "鳥になったきょうりゅうの話", on: "カ・ケ", kun: "ば（ける）・ば（かす）", speech: "か、け、ばける", example: "化ける・化石", prompt: "きつねが【化】ける", answer: "ばける", okuri: "ける" },
+      { kanji: "死", term: 1, unit: "鳥になったきょうりゅうの話", on: "シ", kun: "し（ぬ）", speech: "し、しぬ", example: "必死に走る", prompt: "必【死】に走る", answer: "し", okuri: "" },
+      { kanji: "都", term: 1, unit: "鳥になったきょうりゅうの話", on: "ト・ツ", kun: "みやこ", speech: "と、つ、みやこ", example: "都道府県・都会", prompt: "【都】道府県", answer: "と", okuri: "" },
+
+      // === 2学期（76字） ===
+      // わたしと小鳥とすずと・夕日がせなかをおしてくる (2字)
+      { kanji: "両", term: 2, unit: "わたしと小鳥とすずと", on: "リョウ", kun: "—", speech: "りょう", example: "両手・両方", prompt: "【両】手をつなぐ", answer: "りょう", okuri: "" },
+      { kanji: "負", term: 2, unit: "わたしと小鳥とすずと", on: "フ", kun: "ま（ける）・ま（かす）・お（う）", speech: "ふ、まける、おう", example: "しょうぶに負ける", prompt: "しょうぶに【負】ける", answer: "まける", okuri: "ける" },
+      // 山小屋で三日間すごすなら (3字)
+      { kanji: "対", term: 2, unit: "山小屋で三日間すごすなら", on: "タイ・ツイ", kun: "—", speech: "たい、つい", example: "反対する・一対一", prompt: "はん【対】する", answer: "たい", okuri: "" },
+      { kanji: "屋", term: 2, unit: "山小屋で三日間すごすなら", on: "オク", kun: "や", speech: "おく、や", example: "本屋さん・山小屋", prompt: "本【屋】さん", answer: "や", okuri: "" },
+      { kanji: "員", term: 2, unit: "山小屋で三日間すごすなら", on: "イン", kun: "—", speech: "いん", example: "全員・店員", prompt: "ぜん【員】", answer: "いん", okuri: "" },
+      // ポスターを読もう (3字)
+      { kanji: "写", term: 2, unit: "ポスターを読もう", on: "シャ", kun: "うつ（す）・うつ（る）", speech: "しゃ、うつす", example: "写真・書き写す", prompt: "【写】真をとる", answer: "しゃ", okuri: "" },
+      { kanji: "真", term: 2, unit: "ポスターを読もう", on: "シン", kun: "ま", speech: "しん、ま", example: "真ん中・写真", prompt: "【真】ん中", answer: "ま", okuri: "" },
+      { kanji: "祭", term: 2, unit: "ポスターを読もう", on: "サイ", kun: "まつ（り）・まつ（る）", speech: "さい、まつり", example: "お祭り・文化祭", prompt: "お【祭】り", answer: "まつり", okuri: "り" },
+      // へんとつくり (6字)
+      { kanji: "部", term: 2, unit: "へんとつくり", on: "ブ", kun: "—", speech: "ぶ", example: "全部・クラブ活動", prompt: "ぜん【部】", answer: "ぶ", okuri: "" },
+      { kanji: "係", term: 2, unit: "へんとつくり", on: "ケイ", kun: "かかり・かか（る）", speech: "けい、かかり", example: "いきもの係", prompt: "いきもの【係】", answer: "かかり", okuri: "" },
+      { kanji: "板", term: 2, unit: "へんとつくり", on: "ハン・バン", kun: "いた", speech: "はん、ばん、いた", example: "こく板・木の板", prompt: "こく【板】", answer: "ばん", okuri: "" },
+      { kanji: "柱", term: 2, unit: "へんとつくり", on: "チュウ", kun: "はしら", speech: "ちゅう、はしら", example: "電柱・大黒柱", prompt: "電【柱】", answer: "ちゅう", okuri: "" },
+      { kanji: "油", term: 2, unit: "へんとつくり", on: "ユ", kun: "あぶら", speech: "ゆ、あぶら", example: "しょう油・油絵", prompt: "しょう【油】", answer: "ゆ", okuri: "" },
+      { kanji: "港", term: 2, unit: "へんとつくり", on: "コウ", kun: "みなと", speech: "こう、みなと", example: "船が港につく・空港", prompt: "船が【港】につく", answer: "みなと", okuri: "" },
+      // ちいちゃんのかげおくり (13字)
+      { kanji: "起", term: 2, unit: "ちいちゃんのかげおくり", on: "キ", kun: "お（きる）・お（こす）", speech: "き、おきる、おこす", example: "朝早く起きる", prompt: "朝早く【起】きる", answer: "おきる", okuri: "きる" },
+      { kanji: "列", term: 2, unit: "ちいちゃんのかげおくり", on: "レツ", kun: "—", speech: "れつ", example: "一列・列車", prompt: "一【列】にならぶ", answer: "れつ", okuri: "" },
+      { kanji: "乗", term: 2, unit: "ちいちゃんのかげおくり", on: "ジョウ", kun: "の（る）・の（せる）", speech: "じょう、のる", example: "電車に乗る・乗り物", prompt: "電車に【乗】る", answer: "のる", okuri: "る" },
+      { kanji: "急", term: 2, unit: "ちいちゃんのかげおくり", on: "キュウ", kun: "いそ（ぐ）", speech: "きゅう、いそぐ", example: "学校へ急ぐ・特急", prompt: "学校へ【急】ぐ", answer: "いそぐ", okuri: "ぐ" },
+      { kanji: "追", term: 2, unit: "ちいちゃんのかげおくり", on: "ツイ", kun: "お（う）", speech: "つい、おう", example: "あとを追う", prompt: "あとを【追】う", answer: "おう", okuri: "う" },
+      { kanji: "血", term: 2, unit: "ちいちゃんのかげおくり", on: "ケツ", kun: "ち", speech: "けつ、ち", example: "血が出る・血液", prompt: "【血】が出る", answer: "ち", okuri: "" },
+      { kanji: "暗", term: 2, unit: "ちいちゃんのかげおくり", on: "アン", kun: "くら（い）", speech: "あん、くらい", example: "暗い夜道", prompt: "夜になって【暗】い", answer: "くらい", okuri: "い" },
+      { kanji: "橋", term: 2, unit: "ちいちゃんのかげおくり", on: "キョウ", kun: "はし", speech: "きょう、はし", example: "川の橋・歩道橋", prompt: "川の【橋】をわたる", answer: "はし", okuri: "" },
+      { kanji: "暑", term: 2, unit: "ちいちゃんのかげおくり", on: "ショ", kun: "あつ（い）", speech: "しょ、あつい", example: "夏は暑い", prompt: "夏は【暑】い", answer: "あつい", okuri: "い" },
+      { kanji: "寒", term: 2, unit: "ちいちゃんのかげおくり", on: "カン", kun: "さむ（い）", speech: "かん、さむい", example: "冬は寒い", prompt: "冬は【寒】い", answer: "さむい", okuri: "い" },
+      { kanji: "軽", term: 2, unit: "ちいちゃんのかげおくり", on: "ケイ", kun: "かる（い）・かろ（やか）", speech: "けい、かるい", example: "軽いにもつ", prompt: "【軽】いにもつ", answer: "かるい", okuri: "い" },
+      { kanji: "命", term: 2, unit: "ちいちゃんのかげおくり", on: "メイ・ミョウ", kun: "いのち", speech: "めい、いのち", example: "命を大切にする", prompt: "【命】を大切にする", answer: "いのち", okuri: "" },
+      { kanji: "第", term: 2, unit: "ちいちゃんのかげおくり", on: "ダイ", kun: "—", speech: "だい", example: "第一問", prompt: "【第】一問", answer: "だい", okuri: "" },
+      // 修飾語を使って書こう (7字)
+      { kanji: "主", term: 2, unit: "修飾語を使って書こう", on: "シュ・ス", kun: "ぬし・おも", speech: "しゅ、ぬし、おも", example: "主役・持ち主", prompt: "【主】役になる", answer: "しゅ", okuri: "" },
+      { kanji: "州", term: 2, unit: "修飾語を使って書こう", on: "シュウ", kun: "す", speech: "しゅう、す", example: "本州・九州", prompt: "本【州】と九州", answer: "しゅう", okuri: "" },
+      { kanji: "根", term: 2, unit: "修飾語を使って書こう", on: "コン", kun: "ね", speech: "こん、ね", example: "や根・木の根", prompt: "や【根】", answer: "ね", okuri: "" },
+      { kanji: "流", term: 2, unit: "修飾語を使って書こう", on: "リュウ・ル", kun: "なが（れる）・なが（す）", speech: "りゅう、ながれる", example: "川が流れる", prompt: "川が【流】れる", answer: "ながれる", okuri: "れる" },
+      { kanji: "荷", term: 2, unit: "修飾語を使って書こう", on: "カ", kun: "に", speech: "か、に", example: "荷物をもつ", prompt: "【荷】物をもつ", answer: "に", okuri: "" },
+      { kanji: "君", term: 2, unit: "修飾語を使って書こう", on: "クン", kun: "きみ", speech: "くん、きみ", example: "山田君", prompt: "山田【君】", answer: "くん", okuri: "" },
+      { kanji: "守", term: 2, unit: "修飾語を使って書こう", on: "シュ・ス", kun: "まも（る）・もり", speech: "しゅ、まもる", example: "やくそくを守る", prompt: "やくそくを【守】る", answer: "まもる", okuri: "る" },
+      // はんで意見をまとめよう (3字)
+      { kanji: "進", term: 2, unit: "はんで意見をまとめよう", on: "シン", kun: "すす（む）・すす（める）", speech: "しん、すすむ", example: "前へ進む", prompt: "前へ【進】む", answer: "すすむ", okuri: "む" },
+      { kanji: "役", term: 2, unit: "はんで意見をまとめよう", on: "ヤク・エキ", kun: "—", speech: "やく、えき", example: "主役・役に立つ", prompt: "主【役】", answer: "やく", okuri: "" },
+      { kanji: "他", term: 2, unit: "はんで意見をまとめよう", on: "タ", kun: "ほか", speech: "た、ほか", example: "その他の人", prompt: "その【他】の人", answer: "ほか", okuri: "" },
+      // すがたをかえる大豆 (7字)
+      { kanji: "豆", term: 2, unit: "すがたをかえる大豆", on: "トウ・ズ", kun: "まめ", speech: "とう、ず、まめ", example: "大豆・豆まき", prompt: "大【豆】", answer: "まめ", okuri: "" },
+      { kanji: "者", term: 2, unit: "すがたをかえる大豆", on: "シャ", kun: "もの", speech: "しゃ、もの", example: "い者さん・学者", prompt: "い【者】さん", answer: "しゃ", okuri: "" },
+      { kanji: "育", term: 2, unit: "すがたをかえる大豆", on: "イク", kun: "そだ（つ）・そだ（てる）", speech: "いく、そだつ、そだてる", example: "野菜を育てる", prompt: "野菜を【育】てる", answer: "そだてる", okuri: "てる" },
+      { kanji: "消", term: 2, unit: "すがたをかえる大豆", on: "ショウ", kun: "き（える）・け（す）", speech: "しょう、きえる、けす", example: "電気を消す", prompt: "電気を【消】す", answer: "けす", okuri: "す" },
+      { kanji: "取", term: 2, unit: "すがたをかえる大豆", on: "シュ", kun: "と（る）", speech: "しゅ、とる", example: "ボールを取る", prompt: "ボールを【取】る", answer: "とる", okuri: "る" },
+      { kanji: "期", term: 2, unit: "すがたをかえる大豆", on: "キ・ゴ", kun: "—", speech: "き、ご", example: "一学期", prompt: "一学【期】", answer: "き", okuri: "" },
+      { kanji: "畑", term: 2, unit: "すがたをかえる大豆", on: "—", kun: "はた・はたけ", speech: "はた、はたけ", example: "野菜の畑", prompt: "野菜の【畑】", answer: "はたけ", okuri: "" },
+      // ことわざ・故事成語 (4字)
+      { kanji: "福", term: 2, unit: "ことわざ・故事成語", on: "フク", kun: "—", speech: "ふく", example: "こう福・福笑い", prompt: "こう【福】", answer: "ふく", okuri: "" },
+      { kanji: "苦", term: 2, unit: "ことわざ・故事成語", on: "ク", kun: "くる（しい）・にが（い）", speech: "く、くるしい、にがい", example: "苦い薬・苦労", prompt: "【苦】い薬", answer: "にがい", okuri: "い" },
+      { kanji: "倍", term: 2, unit: "ことわざ・故事成語", on: "バイ", kun: "—", speech: "ばい", example: "二倍にする", prompt: "二【倍】にする", answer: "ばい", okuri: "" },
+      { kanji: "談", term: 2, unit: "ことわざ・故事成語", on: "ダン", kun: "—", speech: "だん", example: "相談する・じょう談", prompt: "そう【談】する", answer: "だん", okuri: "" },
+      // 漢字の意味 (13字)
+      { kanji: "鼻", term: 2, unit: "漢字の意味", on: "ビ", kun: "はな", speech: "び、はな", example: "ぞうの鼻", prompt: "ぞうの【鼻】", answer: "はな", okuri: "" },
+      { kanji: "歯", term: 2, unit: "漢字の意味", on: "シ", kun: "は", speech: "し、は", example: "歯をみがく・歯医者", prompt: "【歯】をみがく", answer: "は", okuri: "" },
+      { kanji: "階", term: 2, unit: "漢字の意味", on: "カイ", kun: "—", speech: "かい", example: "二階・階段", prompt: "二【階】に上がる", answer: "かい", okuri: "" },
+      { kanji: "央", term: 2, unit: "漢字の意味", on: "オウ", kun: "—", speech: "おう", example: "中央", prompt: "中【央】", answer: "おう", okuri: "" },
+      { kanji: "旅", term: 2, unit: "漢字の意味", on: "リョ", kun: "たび", speech: "りょ、たび", example: "旅行に行く", prompt: "【旅】行に行く", answer: "りょ", okuri: "" },
+      { kanji: "委", term: 2, unit: "漢字の意味", on: "イ", kun: "—", speech: "い", example: "委員会", prompt: "【委】員会", answer: "い", okuri: "" },
+      { kanji: "級", term: 2, unit: "漢字の意味", on: "キュウ", kun: "—", speech: "きゅう", example: "三級・学級", prompt: "三【級】にごうかく", answer: "きゅう", okuri: "" },
+      { kanji: "昭", term: 2, unit: "漢字の意味", on: "ショウ", kun: "—", speech: "しょう", example: "昭和時代", prompt: "【昭】和時代", answer: "しょう", okuri: "" },
+      { kanji: "和", term: 2, unit: "漢字の意味", on: "ワ・オ", kun: "やわ（らぐ）・なご（む）", speech: "わ、やわらぐ", example: "平和・和食", prompt: "平【和】", answer: "わ", okuri: "" },
+      { kanji: "駅", term: 2, unit: "漢字の意味", on: "エキ", kun: "—", speech: "えき", example: "駅前", prompt: "【駅】前", answer: "えき", okuri: "" },
+      { kanji: "業", term: 2, unit: "漢字の意味", on: "ギョウ・ゴウ", kun: "わざ", speech: "ぎょう、わざ", example: "授業・卒業", prompt: "じゅ【業】", answer: "ぎょう", okuri: "" },
+      { kanji: "皮", term: 2, unit: "漢字の意味", on: "ヒ", kun: "かわ", speech: "ひ、かわ", example: "りんごの皮", prompt: "りんごの【皮】", answer: "かわ", okuri: "" },
+      { kanji: "皿", term: 2, unit: "漢字の意味", on: "—", kun: "さら", speech: "さら", example: "お皿をあらう", prompt: "お【皿】をあらう", answer: "さら", okuri: "" },
+      // 三年とうげ (12字)
+      { kanji: "息", term: 2, unit: "三年とうげ", on: "ソク", kun: "いき", speech: "そく、いき", example: "息をすう", prompt: "【息】をすう", answer: "いき", okuri: "" },
+      { kanji: "美", term: 2, unit: "三年とうげ", on: "ビ", kun: "うつく（しい）", speech: "び、うつくしい", example: "美しい花・美術館", prompt: "【美】しい花", answer: "うつくしい", okuri: "しい" },
+      { kanji: "転", term: 2, unit: "三年とうげ", on: "テン", kun: "ころ（がる）・ころ（ぶ）", speech: "てん、ころがる、ころぶ", example: "道で転ぶ・自転車", prompt: "道で【転】ぶ", answer: "ころぶ", okuri: "ぶ" },
+      { kanji: "病", term: 2, unit: "三年とうげ", on: "ビョウ・ヘイ", kun: "や（む）・やまい", speech: "びょう、やまい", example: "病院・病気", prompt: "【病】院へ行く", answer: "びょう", okuri: "" },
+      { kanji: "医", term: 2, unit: "三年とうげ", on: "イ", kun: "—", speech: "い", example: "医者さん・歯医者", prompt: "【医】者さん", answer: "い", okuri: "" },
+      { kanji: "薬", term: 2, unit: "三年とうげ", on: "ヤク", kun: "くすり", speech: "やく、くすり", example: "薬をのむ・薬局", prompt: "【薬】をのむ", answer: "くすり", okuri: "" },
+      { kanji: "飲", term: 2, unit: "三年とうげ", on: "イン", kun: "の（む）", speech: "いん、のむ", example: "水を飲む・飲み物", prompt: "水を【飲】む", answer: "のむ", okuri: "む" },
+      { kanji: "重", term: 2, unit: "三年とうげ", on: "ジュウ・チョウ", kun: "おも（い）・かさ（ねる）", speech: "じゅう、ちょう、おもい", example: "重い石・体重", prompt: "【重】い石", answer: "おもい", okuri: "い" },
+      { kanji: "配", term: 2, unit: "三年とうげ", on: "ハイ", kun: "くば（る）", speech: "はい、くばる", example: "プリントを配る・心配", prompt: "プリントを【配】る", answer: "くばる", okuri: "る" },
+      { kanji: "度", term: 2, unit: "三年とうげ", on: "ド・ト・タク", kun: "たび", speech: "ど、たび", example: "温度計・今度", prompt: "温【度】計", answer: "ど", okuri: "" },
+      { kanji: "幸", term: 2, unit: "三年とうげ", on: "コウ", kun: "さいわ（い）・しあわ（せ）", speech: "こう、しあわせ", example: "幸せな気もち・幸福", prompt: "【幸】せな気もち", answer: "しあわせ", okuri: "せ" },
+      { kanji: "始", term: 2, unit: "三年とうげ", on: "シ", kun: "はじ（める）・はじ（まる）", speech: "し、はじめる", example: "べんきょうを始める", prompt: "べんきょうを【始】める", answer: "はじめる", okuri: "める" },
+      // たから島のぼうけん (3字)
+      { kanji: "島", term: 2, unit: "たから島のぼうけん", on: "トウ", kun: "しま", speech: "とう、しま", example: "島へ行く・日本列島", prompt: "【島】へ行く", answer: "しま", okuri: "" },
+      { kanji: "待", term: 2, unit: "たから島のぼうけん", on: "タイ", kun: "ま（つ）", speech: "たい、まつ", example: "友だちを待つ", prompt: "友だちを【待】つ", answer: "まつ", okuri: "つ" },
+      { kanji: "受", term: 2, unit: "たから島のぼうけん", on: "ジュ", kun: "う（ける）・う（かる）", speech: "じゅ、うける", example: "テストを受ける", prompt: "テストを【受】ける", answer: "うける", okuri: "ける" },
+
+      // === 3学期（29字） ===
+      // カンジーはかせの音訓かるた (14字)
+      { kanji: "代", term: 3, unit: "カンジーはかせの音訓かるた", on: "ダイ・タイ", kun: "か（わる）・よ・しろ", speech: "だい、たい、かわる", example: "時代・交代", prompt: "時【代】", answer: "だい", okuri: "" },
+      { kanji: "曲", term: 3, unit: "カンジーはかせの音訓かるた", on: "キョク", kun: "ま（がる）・ま（げる）", speech: "きょく、まがる", example: "右に曲がる・名曲", prompt: "右に【曲】がる", answer: "まがる", okuri: "がる" },
+      { kanji: "投", term: 3, unit: "カンジーはかせの音訓かるた", on: "トウ", kun: "な（げる）", speech: "とう、なげる", example: "ボールを投げる", prompt: "ボールを【投】げる", answer: "なげる", okuri: "げる" },
+      { kanji: "炭", term: 3, unit: "カンジーはかせの音訓かるた", on: "タン", kun: "すみ", speech: "たん、すみ", example: "木炭・石炭", prompt: "木【炭】", answer: "たん", okuri: "" },
+      { kanji: "庫", term: 3, unit: "カンジーはかせの音訓かるた", on: "コ・ク", kun: "—", speech: "こ、く", example: "れいぞう庫・車庫", prompt: "れいぞう【庫】", answer: "こ", okuri: "" },
+      { kanji: "羊", term: 3, unit: "カンジーはかせの音訓かるた", on: "ヨウ", kun: "ひつじ", speech: "よう、ひつじ", example: "羊の毛・羊毛", prompt: "【羊】の毛", answer: "ひつじ", okuri: "" },
+      { kanji: "勝", term: 3, unit: "カンジーはかせの音訓かるた", on: "ショウ", kun: "か（つ）・まさ（る）", speech: "しょう、かつ", example: "しあいに勝つ・勝負", prompt: "しあいに【勝】つ", answer: "かつ", okuri: "つ" },
+      { kanji: "宿", term: 3, unit: "カンジーはかせの音訓かるた", on: "シュク", kun: "やど・やど（る）", speech: "しゅく、やど", example: "宿題をする", prompt: "【宿】題をする", answer: "しゅく", okuri: "" },
+      { kanji: "丁", term: 3, unit: "カンジーはかせの音訓かるた", on: "チョウ・テイ", kun: "—", speech: "ちょう、てい", example: "一丁目・ていねい", prompt: "一【丁】目", answer: "ちょう", okuri: "" },
+      { kanji: "帳", term: 3, unit: "カンジーはかせの音訓かるた", on: "チョウ", kun: "—", speech: "ちょう", example: "れんらく帳・手帳", prompt: "れんらく【帳】", answer: "ちょう", okuri: "" },
+      { kanji: "宮", term: 3, unit: "カンジーはかせの音訓かるた", on: "キュウ・グウ・ク", kun: "みや", speech: "きゅう、ぐう、みや", example: "お宮まいり", prompt: "お【宮】まいり", answer: "みや", okuri: "" },
+      { kanji: "院", term: 3, unit: "カンジーはかせの音訓かるた", on: "イン", kun: "—", speech: "いん", example: "病院・入院", prompt: "病【院】", answer: "いん", okuri: "" },
+      { kanji: "笛", term: 3, unit: "カンジーはかせの音訓かるた", on: "テキ", kun: "ふえ", speech: "てき、ふえ", example: "笛をふく・口笛", prompt: "【笛】をふく", answer: "ふえ", okuri: "" },
+      { kanji: "礼", term: 3, unit: "カンジーはかせの音訓かるた", on: "レイ・ライ", kun: "—", speech: "れい", example: "お礼を言う・礼ぎ", prompt: "お【礼】を言う", answer: "れい", okuri: "" },
+      // ありの行列 (3字)
+      { kanji: "研", term: 3, unit: "ありの行列", on: "ケン", kun: "と（ぐ）", speech: "けん、とぐ", example: "研究する", prompt: "【研】究する", answer: "けん", okuri: "" },
+      { kanji: "究", term: 3, unit: "ありの行列", on: "キュウ", kun: "きわ（める）", speech: "きゅう、きわめる", example: "研究発表", prompt: "研【究】発表", answer: "きゅう", okuri: "" },
+      { kanji: "庭", term: 3, unit: "ありの行列", on: "テイ", kun: "にわ", speech: "てい、にわ", example: "校庭・家庭", prompt: "校【庭】で遊ぶ", answer: "てい", okuri: "" },
+      // つたわる言葉で表そう (3字)
+      { kanji: "等", term: 3, unit: "つたわる言葉で表そう", on: "トウ", kun: "ひと（しい）", speech: "とう、ひとしい", example: "一等賞・平等", prompt: "一【等】賞", answer: "とう", okuri: "" },
+      { kanji: "湖", term: 3, unit: "つたわる言葉で表そう", on: "コ", kun: "みずうみ", speech: "こ、みずうみ", example: "大きな湖", prompt: "大きな【湖】", answer: "みずうみ", okuri: "" },
+      { kanji: "注", term: 3, unit: "つたわる言葉で表そう", on: "チュウ", kun: "そそ（ぐ）", speech: "ちゅう、そそぐ", example: "注意する・注文", prompt: "【注】意する", answer: "ちゅう", okuri: "" },
+      // これがわたしのお気に入り (1字)
+      { kanji: "反", term: 3, unit: "これがわたしのお気に入り", on: "ハン・ホン・タン", kun: "そ（る）", speech: "はん、そる", example: "反対する・反省", prompt: "【反】対する", answer: "はん", okuri: "" },
+      // コンピュータのローマ字入力 (4字)
+      { kanji: "波", term: 3, unit: "コンピュータのローマ字入力", on: "ハ", kun: "なみ", speech: "は、なみ", example: "海の波・電波", prompt: "海の【波】", answer: "なみ", okuri: "" },
+      { kanji: "勉", term: 3, unit: "コンピュータのローマ字入力", on: "ベン", kun: "—", speech: "べん", example: "勉強する", prompt: "【勉】強する", answer: "べん", okuri: "" },
+      { kanji: "放", term: 3, unit: "コンピュータのローマ字入力", on: "ホウ", kun: "はな（す）・はな（つ）", speech: "ほう、はなす", example: "放課後・放送", prompt: "【放】課後", answer: "ほう", okuri: "" },
+      { kanji: "打", term: 3, unit: "コンピュータのローマ字入力", on: "ダ", kun: "う（つ）", speech: "だ、うつ", example: "たいこを打つ", prompt: "たいこを【打】つ", answer: "うつ", okuri: "つ" },
+      // わたしたちの学校じまん (1字)
+      { kanji: "速", term: 3, unit: "わたしたちの学校じまん", on: "ソク", kun: "はや（い）・すみ（やか）", speech: "そく、はやい", example: "足が速い・スピード", prompt: "足が【速】い", answer: "はやい", okuri: "い" },
+      // モチモチの木 (3字)
+      { kanji: "神", term: 3, unit: "モチモチの木", on: "シン・ジン", kun: "かみ・かん・こう", speech: "しん、じん、かみ", example: "神社・神さま", prompt: "【神】社", answer: "じん", okuri: "" },
+      { kanji: "箱", term: 3, unit: "モチモチの木", on: "—", kun: "はこ", speech: "はこ", example: "大きな箱・道具箱", prompt: "大きな【箱】", answer: "はこ", okuri: "" },
+      { kanji: "湯", term: 3, unit: "モチモチの木", on: "トウ", kun: "ゆ", speech: "とう、ゆ", example: "お湯をわかす", prompt: "お【湯】をわかす", answer: "ゆ", okuri: "" }
+    ];
+
+    /* --------------------------------------------------------------------------
+       3. Firestore データベース初期化・保存・取得（厳格ルール遵守）
+       -------------------------------------------------------------------------- */
+    let db = null;
+    let auth = null;
+    let currentUser = null;
+    let localMemoryHistory = []; // Firestore未設定環境用のフォールバック配列
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'kanji-grade3-mitsumura';
+
+    async function initCloudStorage() {
+      try {
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          const firebaseConfig = JSON.parse(__firebase_config);
+          const app = initializeApp(firebaseConfig);
+          db = getFirestore(app);
+          auth = getAuth(app);
+
+          // RULE 3: 認証完了を待ってからクエリを実行する
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            const cred = await signInWithCustomToken(auth, __initial_auth_token);
+            currentUser = cred.user;
+          } else {
+            const cred = await signInAnonymously(auth);
+            currentUser = cred.user;
+          }
+          await loadHistoryRecords();
+        }
+      } catch (err) {
+        console.warn("クラウド保存の初期化をスキップし、セッション内記録を使用します:", err);
+      }
+    }
+
+    /**
+     * テスト結果を日付付きで保存する
+     */
+    async function saveTestResult(record) {
+      // メモリ内にも即時追加
+      localMemoryHistory.unshift(record);
+
+      const statusEl = document.getElementById('result-save-status');
+      if (!db || !currentUser) {
+        if (statusEl) statusEl.textContent = "✅ きろくに保存しました！";
+        return;
+      }
+
+      try {
+        // RULE 1: Strict Path (/artifacts/{appId}/users/{userId}/{collectionName})
+        const colRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'kanji_test_results');
+        await addDoc(colRef, record);
+        if (statusEl) statusEl.textContent = "✅ 日付といっしょにきろくに保存しました！";
+        await loadHistoryRecords();
+      } catch (err) {
+        console.error("結果の保存に失敗:", err);
+        if (statusEl) statusEl.textContent = "✅ きろくに保存しました！";
+      }
+    }
+
+    /**
+     * 保存されたテスト履歴を全件取得し、JavaScript側で新しい順にソートする
+     */
+    async function loadHistoryRecords() {
+      if (!db || !currentUser) {
+        renderHistoryList();
+        return;
+      }
+
+      try {
+        // RULE 2: 複雑クエリ（orderBy/where）は使わず単純取得後にJSメモリでソート
+        const colRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'kanji_test_results');
+        const snapshot = await getDocs(colRef);
+        const fetched = [];
+        snapshot.forEach((docSnap) => {
+          fetched.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        fetched.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        localMemoryHistory = fetched;
+        renderHistoryList();
+      } catch (err) {
+        console.error("履歴の読み込みに失敗:", err);
+        renderHistoryList();
+      }
+    }
+
+    /* --------------------------------------------------------------------------
+       4. 音声読み上げ（Web Speech API）＆ 効果音（Web Audio API）
+       -------------------------------------------------------------------------- */
+    let jaVoice = null;
+
+    function loadJapaneseVoice() {
+      if (!('speechSynthesis' in window)) return;
+      const voices = window.speechSynthesis.getVoices();
+      // iPadOS / macOSの自然な日本語音声（Kyoko / O-Ren / Google 日本語）を優先選択
+      jaVoice =
+        voices.find(v => v.lang.includes('ja') && (v.name.includes('Kyoko') || v.name.includes('O-Ren') || v.name.includes('Google'))) ||
+        voices.find(v => v.lang.includes('ja')) ||
+        null;
+    }
+
+    if ('speechSynthesis' in window) {
+      loadJapaneseVoice();
+      window.speechSynthesis.onvoiceschanged = loadJapaneseVoice;
+    }
+
+    /**
+     * 指定テキストを日本語音声で読み上げる
+     * @param {string} text - 読み上げるひらがなテキスト
+     * @param {number} rate - 読み上げ速度 (0.75 ~ 1.25)
+     * @param {Function} onEndCallback - 読み上げ終了時に呼ばれるコールバック
+     */
+    function speakText(text, rate = 1.0, onEndCallback = null) {
+      if (!('speechSynthesis' in window)) {
+        if (onEndCallback) setTimeout(onEndCallback, 1200);
+        return;
+      }
+
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ja-JP';
+        if (jaVoice) utter.voice = jaVoice;
+        utter.rate = rate;
+        utter.pitch = 1.05;
+
+        let finished = false;
+        const finishOnce = () => {
+          if (finished) return;
+          finished = true;
+          if (onEndCallback) onEndCallback();
+        };
+
+        utter.onend = finishOnce;
+        utter.onerror = finishOnce;
+
+        window.speechSynthesis.speak(utter);
+
+        // iPad Safariで稀にonendが発火しないケースへの安全フォールバックタイマー
+        const fallbackMs = Math.max(1800, text.length * 380 / rate);
+        setTimeout(finishOnce, fallbackMs);
+      } catch (e) {
+        if (onEndCallback) setTimeout(onEndCallback, 1200);
+      }
+    }
+
+    /**
+     * テスト用のピンポン・ブザー効果音（外部ファイル不要のWeb Audio API）
+     */
+    function playSoundEffect(type) {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+
+        if (type === 'correct') {
+          // ピンポン音（高いミ → 高いド）
+          [659.25, 1046.50].forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.13);
+            gain.gain.setValueAtTime(0.18, now + idx * 0.13);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.13 + 0.35);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + idx * 0.13);
+            osc.stop(now + idx * 0.13 + 0.36);
+          });
+        } else {
+          // ブブー音（やさしい低音2回）
+          [165, 155].forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.16);
+            gain.gain.setValueAtTime(0.2, now + idx * 0.16);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.16 + 0.14);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + idx * 0.16);
+            osc.stop(now + idx * 0.16 + 0.15);
+          });
+        }
+      } catch (e) {
+        // 音声再生不可時は無視
+      }
+    }
+
+    /* --------------------------------------------------------------------------
+       5. 再生モード（おぼえる）の制御ロジック
+       -------------------------------------------------------------------------- */
+    let currentStudyIndex = 0;
+    let isAutoPlaying = false;
+    let autoPlayTimer = null;
+    let currentSpeed = 'normal'; // 'slow' | 'normal' | 'fast'
+    let showGrid = true;
+
+    const SPEED_CONFIG = {
+      slow:   { rate: 0.75, pauseMs: 2200 },
+      normal: { rate: 1.0,  pauseMs: 1300 },
+      fast:   { rate: 1.25, pauseMs: 650 }
+    };
+
+    /**
+     * 単元セレクトボックスを光村図書の単元順に構築する
+     */
+    function initUnitSelect() {
+      const select = document.getElementById('unit-select');
+      select.innerHTML = '';
+
+      let lastUnitKey = '';
+      KANJI_DATA.forEach((item, idx) => {
+        const unitKey = `${item.term}-${item.unit}`;
+        if (unitKey !== lastUnitKey) {
+          lastUnitKey = unitKey;
+          const opt = document.createElement('option');
+          opt.value = idx;
+          opt.textContent = `${item.term}学期｜${item.unit}（${idx + 1}番〜）`;
+          select.appendChild(opt);
+        }
+      });
+    }
+
+    /**
+     * 現在のインデックスの漢字カードを画面に描画する
+     */
+    function renderStudyCard(shouldSpeak = false) {
+      const item = KANJI_DATA[currentStudyIndex];
+      if (!item) return;
+
+      // 学期バッジの色分け
+      const termBadge = document.getElementById('study-term-badge');
+      termBadge.textContent = `${item.term}学期`;
+      if (item.term === 1) {
+        termBadge.className = "px-3 py-1 rounded-full text-xs sm:text-sm font-bold bg-pink-100 text-pink-700";
+      } else if (item.term === 2) {
+        termBadge.className = "px-3 py-1 rounded-full text-xs sm:text-sm font-bold bg-sky-100 text-sky-700";
+      } else {
+        termBadge.className = "px-3 py-1 rounded-full text-xs sm:text-sm font-bold bg-emerald-100 text-emerald-700";
+      }
+
+      document.getElementById('study-unit-name').textContent = item.unit;
+      document.getElementById('study-counter').textContent = `${currentStudyIndex + 1} / ${KANJI_DATA.length}`;
+      document.getElementById('study-slider').value = currentStudyIndex;
+
+      // 漢字のポップアニメーション再トリガー
+      const kanjiEl = document.getElementById('study-kanji');
+      kanjiEl.classList.remove('animate-pop');
+      void kanjiEl.offsetWidth; // リフロー強制
+      kanjiEl.textContent = item.kanji;
+      kanjiEl.classList.add('animate-pop');
+
+      document.getElementById('study-on').textContent = item.on;
+      document.getElementById('study-kun').textContent = item.kun;
+      document.getElementById('study-example').textContent = item.example;
+
+      // 単元ドロップダウンの選択状態を同期
+      const select = document.getElementById('unit-select');
+      let matchingOptVal = 0;
+      for (let i = 0; i < select.options.length; i++) {
+        if (Number(select.options[i].value) <= currentStudyIndex) {
+          matchingOptVal = select.options[i].value;
+        }
+      }
+      select.value = matchingOptVal;
+
+      if (shouldSpeak) {
+        const cfg = SPEED_CONFIG[currentSpeed];
+        speakText(item.speech, cfg.rate, () => {
+          if (isAutoPlaying) {
+            clearTimeout(autoPlayTimer);
+            autoPlayTimer = setTimeout(() => {
+              if (!isAutoPlaying) return;
+              if (currentStudyIndex < KANJI_DATA.length - 1) {
+                currentStudyIndex++;
+                renderStudyCard(true);
+              } else {
+                // 200字最後まで到達したら自動停止
+                stopAutoPlay();
+              }
+            }, cfg.pauseMs);
+          }
+        });
+      }
+    }
+
+    window.speakCurrentKanji = function() {
+      const item = KANJI_DATA[currentStudyIndex];
+      if (item) {
+        speakText(item.speech, SPEED_CONFIG[currentSpeed].rate);
+      }
+    };
+
+    window.toggleAutoPlay = function() {
+      if (isAutoPlaying) {
+        stopAutoPlay();
+      } else {
+        startAutoPlay();
+      }
+    };
+
+    function startAutoPlay() {
+      isAutoPlaying = true;
+      const btn = document.getElementById('btn-play-toggle');
+      btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+      btn.classList.add('bg-rose-500', 'hover:bg-rose-600');
+      document.getElementById('play-icon').textContent = '⏸';
+      document.getElementById('play-label').textContent = 'いちじていし';
+
+      // タップのユーザー操作コンテキスト内で即座に最初の漢字を読み上げる（iPad Safari対策）
+      renderStudyCard(true);
+    }
+
+    function stopAutoPlay() {
+      isAutoPlaying = false;
+      clearTimeout(autoPlayTimer);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      const btn = document.getElementById('btn-play-toggle');
+      if (btn) {
+        btn.classList.remove('bg-rose-500', 'hover:bg-rose-600');
+        btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+        document.getElementById('play-icon').textContent = '▶';
+        document.getElementById('play-label').textContent = '自動さいせい';
+      }
+    }
+
+    window.prevKanji = function() {
+      clearTimeout(autoPlayTimer);
+      currentStudyIndex = (currentStudyIndex - 1 + KANJI_DATA.length) % KANJI_DATA.length;
+      renderStudyCard(true);
+    };
+
+    window.nextKanji = function() {
+      clearTimeout(autoPlayTimer);
+      currentStudyIndex = (currentStudyIndex + 1) % KANJI_DATA.length;
+      renderStudyCard(true);
+    };
+
+    window.onSliderInput = function(val) {
+      clearTimeout(autoPlayTimer);
+      currentStudyIndex = Number(val);
+      renderStudyCard(isAutoPlaying);
+    };
+
+    window.jumpToUnit = function(startIndex) {
+      clearTimeout(autoPlayTimer);
+      currentStudyIndex = Number(startIndex);
+      renderStudyCard(true);
+    };
+
+    window.setSpeed = function(speed) {
+      currentSpeed = speed;
+      ['slow', 'normal', 'fast'].forEach((s) => {
+        const el = document.getElementById(`speed-${s}`);
+        if (s === speed) {
+          el.className = "btn-push px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 text-white shadow-sm";
+        } else {
+          el.className = "btn-push px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600";
+        }
+      });
+    };
+
+    window.toggleGrid = function() {
+      showGrid = !showGrid;
+      const box = document.getElementById('kanji-box');
+      const btn = document.getElementById('btn-grid-toggle');
+      if (showGrid) {
+        box.classList.add('kanji-grid');
+        btn.textContent = "マス目 ON";
+      } else {
+        box.classList.remove('kanji-grid');
+        btn.textContent = "マス目 OFF";
+      }
+    };
+
+    /* --------------------------------------------------------------------------
+       6. テストモード（4択クイズ）の制御ロジック
+       -------------------------------------------------------------------------- */
+    let testMode = 'random20'; // 'random20' | 'all200'
+    let quizQuestions = [];
+    let currentQuestionIdx = 0;
+    let quizScore = 0;
+    let wrongItems = [];
+    let currentChoices = [];
+    let isQuestionAnswered = false;
+
+    function shuffleArray(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    /**
+     * 4択の選択肢（正解1つ + 紛らわしい誤答3つ）を生成する
+     * 送り仮名がある場合は同じ送り仮名を持つ他の漢字の読みを優先して自然な選択肢にする
+     */
+    function generateChoices(targetItem) {
+      const correct = targetItem.answer;
+      const targetOkuri = targetItem.okuri;
+
+      // その漢字自体の音読み・訓読みと被らない候補を集める
+      const forbidden = new Set([correct]);
+
+      // 同じ送り仮名（または送り仮名なし）の漢字から候補抽出
+      let sameOkuriPool = KANJI_DATA
+        .filter(item => item.kanji !== targetItem.kanji && item.okuri === targetOkuri && !forbidden.has(item.answer))
+        .map(item => item.answer);
+      sameOkuriPool = Array.from(new Set(sameOkuriPool));
+
+      let distractors = shuffleArray(sameOkuriPool).slice(0, 3);
+
+      // もし3つに満たない場合は、他の漢字の読み＋同じ送り仮名を組み合わせて補完
+      if (distractors.length < 3) {
+        const fallbackPool = Array.from(new Set(
+          KANJI_DATA
+            .filter(item => item.kanji !== targetItem.kanji && !forbidden.has(item.answer))
+            .map(item => item.answer)
+        ));
+        for (const cand of shuffleArray(fallbackPool)) {
+          if (!distractors.includes(cand)) {
+            distractors.push(cand);
+          }
+          if (distractors.length === 3) break;
+        }
+      }
+
+      return shuffleArray([correct, ...distractors]);
+    }
+
+    window.startTest = function(mode) {
+      stopAutoPlay();
+      testMode = mode;
+      currentQuestionIdx = 0;
+      quizScore = 0;
+      wrongItems = [];
+
+      if (mode === 'random20') {
+        quizQuestions = shuffleArray(KANJI_DATA).slice(0, 20);
+        document.getElementById('quiz-mode-label').textContent = "🎲 ランダム 20問";
+      } else {
+        const orderEl = document.querySelector('input[name="all200-order"]:checked');
+        const orderVal = orderEl ? orderEl.value : 'textbook';
+        quizQuestions = orderVal === 'shuffle' ? shuffleArray(KANJI_DATA) : [...KANJI_DATA];
+        document.getElementById('quiz-mode-label').textContent = "👑 すべての漢字 200問";
+      }
+
+      document.getElementById('test-start-screen').classList.add('hidden');
+      document.getElementById('test-result-screen').classList.add('hidden');
+      document.getElementById('test-quiz-screen').classList.remove('hidden');
+
+      renderQuizQuestion();
+    };
+
+    function renderQuizQuestion() {
+      isQuestionAnswered = false;
+      const item = quizQuestions[currentQuestionIdx];
+      const total = quizQuestions.length;
+
+      document.getElementById('quiz-progress-text').textContent = `第 ${currentQuestionIdx + 1} 問 / ${total} 問`;
+      document.getElementById('quiz-progress-bar').style.width = `${((currentQuestionIdx + 1) / total) * 100}%`;
+      document.getElementById('quiz-score-live').textContent = quizScore;
+
+      document.getElementById('quiz-kanji').textContent = item.kanji;
+      document.getElementById('quiz-prompt').textContent = item.prompt;
+
+      // フィードバックバーを隠す
+      const fb = document.getElementById('quiz-feedback');
+      fb.classList.add('hidden');
+
+      // 4択生成とボタン表示リセット
+      currentChoices = generateChoices(item);
+      const btns = document.querySelectorAll('.choice-btn');
+      btns.forEach((btn, idx) => {
+        btn.textContent = currentChoices[idx];
+        btn.disabled = false;
+        btn.className = "choice-btn btn-push bg-white hover:bg-indigo-50 border-2 border-stone-200 rounded-3xl py-5 sm:py-6 px-4 font-kyokasho text-2xl sm:text-3xl font-bold text-slate-800 shadow-sm";
+      });
+    }
+
+    window.submitAnswer = function(choiceIdx) {
+      if (isQuestionAnswered) return;
+      isQuestionAnswered = true;
+
+      const item = quizQuestions[currentQuestionIdx];
+      const selected = currentChoices[choiceIdx];
+      const isCorrect = selected === item.answer;
+
+      const btns = document.querySelectorAll('.choice-btn');
+      btns.forEach((btn, idx) => {
+        btn.disabled = true;
+        const val = currentChoices[idx];
+        if (val === item.answer) {
+          btn.className = "choice-btn bg-emerald-500 border-2 border-emerald-600 text-white rounded-3xl py-5 sm:py-6 px-4 font-kyokasho text-2xl sm:text-3xl font-bold shadow-md animate-success";
+        } else if (idx === choiceIdx && !isCorrect) {
+          btn.className = "choice-btn bg-rose-500 border-2 border-rose-600 text-white rounded-3xl py-5 sm:py-6 px-4 font-kyokasho text-2xl sm:text-3xl font-bold opacity-90";
+        } else {
+          btn.className = "choice-btn bg-stone-100 border-2 border-stone-200 text-slate-400 rounded-3xl py-5 sm:py-6 px-4 font-kyokasho text-2xl sm:text-3xl font-bold";
+        }
+      });
+
+      const fb = document.getElementById('quiz-feedback');
+      const fbIcon = document.getElementById('feedback-icon');
+      const fbTitle = document.getElementById('feedback-title');
+      const fbDetail = document.getElementById('feedback-detail');
+      const nextBtn = document.getElementById('btn-next-question');
+
+      fb.classList.remove('hidden', 'bg-emerald-100', 'text-emerald-900', 'bg-rose-100', 'text-rose-900');
+
+      if (isCorrect) {
+        quizScore++;
+        document.getElementById('quiz-score-live').textContent = quizScore;
+        playSoundEffect('correct');
+        fb.classList.add('bg-emerald-100', 'text-emerald-900');
+        fbIcon.textContent = "⭕";
+        fbTitle.textContent = "せいかい！すごいね！";
+      } else {
+        wrongItems.push(item);
+        playSoundEffect('wrong');
+        fb.classList.add('bg-rose-100', 'text-rose-900');
+        fbIcon.textContent = "❌";
+        fbTitle.textContent = `おしい！ こたえは「${item.answer}」`;
+      }
+
+      fbDetail.textContent = `音：${item.on} ／ 訓：${item.kun}`;
+      nextBtn.textContent = currentQuestionIdx < quizQuestions.length - 1 ? "つぎへ ▶" : "けっかを見る 🎉";
+    };
+
+    window.nextQuestion = function() {
+      if (currentQuestionIdx < quizQuestions.length - 1) {
+        currentQuestionIdx++;
+        renderQuizQuestion();
+      } else {
+        finishTest();
+      }
+    };
+
+    async function finishTest() {
+      document.getElementById('test-quiz-screen').classList.add('hidden');
+      document.getElementById('test-result-screen').classList.remove('hidden');
+
+      const total = quizQuestions.length;
+      const ratio = quizScore / total;
+
+      // 日付文字列の生成（例: 2026年11月24日）
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      document.getElementById('result-date-text').textContent = `${dateStr}（${timeStr}）`;
+      document.getElementById('result-score').textContent = quizScore;
+      document.getElementById('result-total').textContent = total;
+
+      const trophyEl = document.getElementById('result-trophy');
+      if (ratio === 1) {
+        trophyEl.textContent = "🏆✨";
+      } else if (ratio >= 0.8) {
+        trophyEl.textContent = "🎉👏";
+      } else if (ratio >= 0.5) {
+        trophyEl.textContent = "👍😊";
+      } else {
+        trophyEl.textContent = "💪🔥";
+      }
+
+      // 間違えた漢字の復習リスト表示
+      const wrongContainer = document.getElementById('wrong-kanji-container');
+      const wrongList = document.getElementById('wrong-kanji-list');
+      wrongList.innerHTML = '';
+
+      if (wrongItems.length > 0) {
+        wrongContainer.classList.remove('hidden');
+        wrongItems.forEach((item) => {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.onclick = () => speakText(item.speech, 0.9);
+          card.className = "btn-push bg-white border border-rose-200 rounded-xl p-2.5 flex items-center gap-3 text-left shadow-2xs";
+          card.innerHTML = `
+            <span class="font-kyokasho text-3xl font-bold text-slate-900 w-10 text-center">${item.kanji}</span>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-black text-rose-600">${item.prompt} → 「${item.answer}」</div>
+              <div class="text-xs text-slate-500 truncate">音：${item.on} ／ 訓：${item.kun}</div>
+            </div>
+            <span class="text-base">🔊</span>
+          `;
+          wrongList.appendChild(card);
+        });
+      } else {
+        wrongContainer.classList.add('hidden');
+      }
+
+      // 日付付きで正解数を保存
+      await saveTestResult({
+        date: dateStr,
+        time: timeStr,
+        timestamp: now.getTime(),
+        mode: testMode,
+        score: quizScore,
+        total: total
+      });
+    }
+
+    window.confirmQuitTest = function() {
+      document.getElementById('quit-modal').classList.remove('hidden');
+    };
+
+    window.closeQuitModal = function() {
+      document.getElementById('quit-modal').classList.add('hidden');
+    };
+
+    window.executeQuitTest = function() {
+      closeQuitModal();
+      resetToTestMenu();
+    };
+
+    window.resetToTestMenu = function() {
+      document.getElementById('test-quiz-screen').classList.add('hidden');
+      document.getElementById('test-result-screen').classList.add('hidden');
+      document.getElementById('test-start-screen').classList.remove('hidden');
+    };
+
+    /* --------------------------------------------------------------------------
+       7. きろく画面（日付ごとの成績表示）
+       -------------------------------------------------------------------------- */
+    let currentHistoryFilter = 'all';
+
+    window.setHistoryFilter = function(filter) {
+      currentHistoryFilter = filter;
+      ['all', 'random20', 'all200'].forEach((f) => {
+        const el = document.getElementById(`filter-${f}`);
+        if (f === filter) {
+          el.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 shadow-xs";
+        } else {
+          el.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold text-slate-600";
+        }
+      });
+      renderHistoryList();
+    };
+
+    function renderHistoryList() {
+      // モード別ハイスコアの更新
+      const r20Records = localMemoryHistory.filter(r => r.mode === 'random20');
+      const a200Records = localMemoryHistory.filter(r => r.mode === 'all200');
+
+      const bestR20El = document.getElementById('best-random20');
+      const bestA200El = document.getElementById('best-all200');
+
+      if (r20Records.length > 0) {
+        const maxScore = Math.max(...r20Records.map(r => r.score));
+        bestR20El.textContent = `${maxScore} / 20 問`;
+      } else {
+        bestR20El.textContent = "まだきろくがありません";
+      }
+
+      if (a200Records.length > 0) {
+        const maxScore = Math.max(...a200Records.map(r => r.score));
+        bestA200El.textContent = `${maxScore} / 200 問`;
+      } else {
+        bestA200El.textContent = "まだきろくがありません";
+      }
+
+      // フィルター適用後の履歴表示
+      const listEl = document.getElementById('history-list');
+      const filtered = currentHistoryFilter === 'all'
+        ? localMemoryHistory
+        : localMemoryHistory.filter(r => r.mode === currentHistoryFilter);
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div class="text-center py-12 text-slate-400">
+            <div class="text-4xl mb-2">📭</div>
+            <p class="font-bold">まだテストのきろくがありません。</p>
+            <p class="text-xs mt-1">「テスト」にちょうせんすると、日付といっしょにきろくされます！</p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = '';
+      filtered.forEach((rec) => {
+        const isR20 = rec.mode === 'random20';
+        const modeBadge = isR20
+          ? `<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700">🎲 ランダム20問</span>`
+          : `<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700">👑 すべての漢字200問</span>`;
+
+        const percent = Math.round((rec.score / rec.total) * 100);
+        const isPerfect = rec.score === rec.total;
+
+        const row = document.createElement('div');
+        row.className = "bg-stone-50 border border-stone-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3";
+        row.innerHTML = `
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-2">
+              <span class="text-sm sm:text-base font-black text-slate-800">📅 ${rec.date}</span>
+              <span class="text-xs font-bold text-slate-400">${rec.time || ''}</span>
+            </div>
+            <div>${modeBadge}</div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <div class="text-xl sm:text-2xl font-black ${isPerfect ? 'text-amber-500' : 'text-slate-800'}">
+                ${isPerfect ? '👑 ' : ''}${rec.score} <span class="text-sm font-bold text-slate-500">/ ${rec.total} 問せいかい</span>
+              </div>
+              <div class="text-xs font-bold text-slate-400">せいかい率 ${percent}%</div>
+            </div>
+          </div>
+        `;
+        listEl.appendChild(row);
+      });
+    }
+
+    /* --------------------------------------------------------------------------
+       8. タブナビゲーション切り替え & アプリ初期起動
+       -------------------------------------------------------------------------- */
+    window.switchTab = function(tabName) {
+      if (tabName !== 'study') {
+        stopAutoPlay();
+      }
+
+      ['study', 'test', 'history'].forEach((name) => {
+        const viewEl = document.getElementById(`view-${name}`);
+        const tabEl = document.getElementById(`tab-${name}`);
+        if (name === tabName) {
+          viewEl.classList.remove('hidden');
+          tabEl.className = "btn-push px-3.5 sm:px-5 py-2.5 rounded-xl font-bold text-sm sm:text-base flex items-center gap-1.5 bg-indigo-600 text-white shadow-sm";
+        } else {
+          viewEl.classList.add('hidden');
+          tabEl.className = "btn-push px-3.5 sm:px-5 py-2.5 rounded-xl font-bold text-sm sm:text-base flex items-center gap-1.5 text-slate-600 hover:bg-white/70";
+        }
+      });
+
+      if (tabName === 'history') {
+        renderHistoryList();
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initUnitSelect();
+      renderStudyCard(false);
+      renderHistoryList();
+      initCloudStorage();
+    });
+  </script>
+</body>
+</html>
