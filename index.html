@@ -297,8 +297,8 @@
           <button onclick="startTest('random20')"
             class="btn-push p-6 rounded-3xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-lg flex flex-col items-center gap-2 text-center">
             <span class="text-4xl">🎲</span>
-            <span class="text-xl sm:text-2xl font-black">ランダム 20問</span>
-            <span class="text-xs sm:text-sm text-indigo-100 font-medium">200字の中からランダムに出題！</span>
+            <span class="text-xl sm:text-2xl font-black">20問 テスト</span>
+            <span class="text-xs sm:text-sm text-indigo-100 font-medium">シャッフル・教科書じゅんで20問！</span>
           </button>
 
           <!-- すべての漢字200問ボタン -->
@@ -310,17 +310,47 @@
           </button>
         </div>
 
-        <!-- 200問モードの出題順オプション -->
-        <div class="bg-stone-50 rounded-2xl p-3.5 border border-stone-200 flex items-center justify-center gap-3">
-          <span class="text-xs sm:text-sm font-bold text-slate-600">「すべての漢字」の順番：</span>
-          <label class="inline-flex items-center gap-1.5 cursor-pointer text-sm font-bold text-slate-700">
-            <input type="radio" name="all200-order" value="textbook" checked class="w-4 h-4 accent-emerald-600">
-            <span>教科書じゅん</span>
-          </label>
-          <label class="inline-flex items-center gap-1.5 cursor-pointer text-sm font-bold text-slate-700">
-            <input type="radio" name="all200-order" value="shuffle" class="w-4 h-4 accent-emerald-600">
-            <span>シャッフル</span>
-          </label>
+        <!-- 出題順オプション（20問・200問それぞれの設定） -->
+        <div class="space-y-2.5 text-left">
+          <!-- 20問モードの順番オプション -->
+          <div class="bg-indigo-50/70 rounded-2xl p-3.5 border border-indigo-100 flex flex-col gap-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-xs sm:text-sm font-bold text-indigo-900">🎲「20問テスト」の出題じゅん：</span>
+              <div class="flex items-center gap-4">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer text-sm font-bold text-slate-700">
+                  <input type="radio" name="random20-order" value="shuffle" checked onchange="toggleTest20UnitSelect()" class="w-4 h-4 accent-indigo-600">
+                  <span>シャッフル</span>
+                </label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer text-sm font-bold text-slate-700">
+                  <input type="radio" name="random20-order" value="textbook" onchange="toggleTest20UnitSelect()" class="w-4 h-4 accent-indigo-600">
+                  <span>教科書じゅん</span>
+                </label>
+              </div>
+            </div>
+            <!-- 教科書じゅん選択時のみ表示される開始単元セレクタ -->
+            <div id="test20-start-unit-box" class="hidden pt-2 border-t border-indigo-200/70 flex flex-col sm:flex-row sm:items-center gap-2">
+              <span class="text-xs font-bold text-indigo-800 whitespace-nowrap">どこから20問？：</span>
+              <select id="test20-unit-select"
+                class="w-full bg-white border border-indigo-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-500">
+                <!-- JSで単元リストを生成 -->
+              </select>
+            </div>
+          </div>
+
+          <!-- 200問モードの出題順オプション -->
+          <div class="bg-emerald-50/70 rounded-2xl p-3.5 border border-emerald-100 flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs sm:text-sm font-bold text-emerald-900">👑「すべての漢字」の出題じゅん：</span>
+            <div class="flex items-center gap-4">
+              <label class="inline-flex items-center gap-1.5 cursor-pointer text-sm font-bold text-slate-700">
+                <input type="radio" name="all200-order" value="textbook" checked class="w-4 h-4 accent-emerald-600">
+                <span>教科書じゅん</span>
+              </label>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer text-sm font-bold text-slate-700">
+                <input type="radio" name="all200-order" value="shuffle" class="w-4 h-4 accent-emerald-600">
+                <span>シャッフル</span>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -465,7 +495,7 @@
         <div class="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-stone-200/80 flex items-center gap-4">
           <div class="w-14 h-14 rounded-2xl bg-indigo-100 text-2xl flex items-center justify-center">🎲</div>
           <div>
-            <div class="text-xs sm:text-sm font-bold text-slate-500">ランダム20問 最高きろく</div>
+            <div class="text-xs sm:text-sm font-bold text-slate-500">20問テスト 最高きろく</div>
             <div id="best-random20" class="text-2xl sm:text-3xl font-black text-indigo-600">まだきろくがありません</div>
           </div>
         </div>
@@ -818,163 +848,129 @@
       }
     }
 
-    /**
-     * テスト結果を日付付きで保存する
-     */
     async function saveTestResult(record) {
-      // メモリ内にも即時追加
       localMemoryHistory.unshift(record);
-
-      const statusEl = document.getElementById('result-save-status');
-      if (!db || !currentUser) {
-        if (statusEl) statusEl.textContent = "✅ きろくに保存しました！";
-        return;
-      }
-
       try {
-        // RULE 1: Strict Path (/artifacts/{appId}/users/{userId}/{collectionName})
-        const colRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'kanji_test_results');
-        await addDoc(colRef, record);
-        if (statusEl) statusEl.textContent = "✅ 日付といっしょにきろくに保存しました！";
-        await loadHistoryRecords();
+        if (db && currentUser) {
+          const colRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'test_records');
+          await addDoc(colRef, record);
+        }
       } catch (err) {
-        console.error("結果の保存に失敗:", err);
-        if (statusEl) statusEl.textContent = "✅ きろくに保存しました！";
+        console.warn("クラウドへの記録保存をスキップしました:", err);
       }
     }
 
-    /**
-     * 保存されたテスト履歴を全件取得し、JavaScript側で新しい順にソートする
-     */
     async function loadHistoryRecords() {
-      if (!db || !currentUser) {
-        renderHistoryList();
-        return;
-      }
-
       try {
-        // RULE 2: 複雑クエリ（orderBy/where）は使わず単純取得後にJSメモリでソート
-        const colRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'kanji_test_results');
-        const snapshot = await getDocs(colRef);
+        if (!db || !currentUser) return;
+        const colRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'test_records');
+        const snap = await getDocs(colRef);
         const fetched = [];
-        snapshot.forEach((docSnap) => {
-          fetched.push({ id: docSnap.id, ...docSnap.data() });
+        snap.forEach((doc) => {
+          fetched.push(doc.data());
         });
         fetched.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         localMemoryHistory = fetched;
         renderHistoryList();
       } catch (err) {
-        console.error("履歴の読み込みに失敗:", err);
-        renderHistoryList();
+        console.warn("クラウドからの記録読み込みをスキップしました:", err);
       }
     }
 
     /* --------------------------------------------------------------------------
-       4. 音声読み上げ（Web Speech API）＆ 効果音（Web Audio API）
+       4. 音声読み上げ（Web Speech API） & 正解・不正解の効果音（Web Audio API）
        -------------------------------------------------------------------------- */
-    let jaVoice = null;
+    let preferredJapaneseVoice = null;
 
-    function loadJapaneseVoice() {
+    function loadVoices() {
       if (!('speechSynthesis' in window)) return;
       const voices = window.speechSynthesis.getVoices();
-      // iPadOS / macOSの自然な日本語音声（Kyoko / O-Ren / Google 日本語）を優先選択
-      jaVoice =
+      preferredJapaneseVoice =
         voices.find(v => v.lang.includes('ja') && (v.name.includes('Kyoko') || v.name.includes('O-Ren') || v.name.includes('Google'))) ||
         voices.find(v => v.lang.includes('ja')) ||
         null;
     }
 
     if ('speechSynthesis' in window) {
-      loadJapaneseVoice();
-      window.speechSynthesis.onvoiceschanged = loadJapaneseVoice;
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
     }
 
-    /**
-     * 指定テキストを日本語音声で読み上げる
-     * @param {string} text - 読み上げるひらがなテキスト
-     * @param {number} rate - 読み上げ速度 (0.75 ~ 1.25)
-     * @param {Function} onEndCallback - 読み上げ終了時に呼ばれるコールバック
-     */
-    function speakText(text, rate = 1.0, onEndCallback = null) {
+    function speakText(text, rate = 0.95, onEndCallback = null) {
       if (!('speechSynthesis' in window)) {
         if (onEndCallback) setTimeout(onEndCallback, 1200);
         return;
       }
 
-      try {
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = 'ja-JP';
-        if (jaVoice) utter.voice = jaVoice;
-        utter.rate = rate;
-        utter.pitch = 1.05;
-
-        let finished = false;
-        const finishOnce = () => {
-          if (finished) return;
-          finished = true;
-          if (onEndCallback) onEndCallback();
-        };
-
-        utter.onend = finishOnce;
-        utter.onerror = finishOnce;
-
-        window.speechSynthesis.speak(utter);
-
-        // iPad Safariで稀にonendが発火しないケースへの安全フォールバックタイマー
-        const fallbackMs = Math.max(1800, text.length * 380 / rate);
-        setTimeout(finishOnce, fallbackMs);
-      } catch (e) {
-        if (onEndCallback) setTimeout(onEndCallback, 1200);
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'ja-JP';
+      if (preferredJapaneseVoice) {
+        utter.voice = preferredJapaneseVoice;
       }
+      utter.rate = rate;
+      utter.pitch = 1.05;
+
+      let callbackFired = false;
+      const safeCallback = () => {
+        if (!callbackFired) {
+          callbackFired = true;
+          if (onEndCallback) onEndCallback();
+        }
+      };
+
+      utter.onend = safeCallback;
+      utter.onerror = safeCallback;
+
+      window.speechSynthesis.speak(utter);
+
+      // Safari等で稀にonendが発火しない場合の安全タイマー
+      const fallbackMs = Math.max(1800, (text.length * 380) / rate + 700);
+      setTimeout(safeCallback, fallbackMs);
     }
 
-    /**
-     * テスト用のピンポン・ブザー効果音（外部ファイル不要のWeb Audio API）
-     */
+    // 外部音声URLを使わない軽量Web Audio効果音
+    let audioCtx = null;
     function playSoundEffect(type) {
       try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return;
-        const ctx = new AudioCtx();
-        const now = ctx.currentTime;
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
 
         if (type === 'correct') {
-          // ピンポン音（高いミ → 高いド）
-          [659.25, 1046.50].forEach((freq, idx) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, now + idx * 0.13);
-            gain.gain.setValueAtTime(0.18, now + idx * 0.13);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.13 + 0.35);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now + idx * 0.13);
-            osc.stop(now + idx * 0.13 + 0.36);
-          });
+          // ピンポン♪（2音チャイム）
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(659.25, now);       // E5
+          osc.frequency.setValueAtTime(880.00, now + 0.12); // A5
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+          osc.start(now);
+          osc.stop(now + 0.43);
         } else {
-          // ブブー音（やさしい低音2回）
-          [165, 155].forEach((freq, idx) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, now + idx * 0.16);
-            gain.gain.setValueAtTime(0.2, now + idx * 0.16);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.16 + 0.14);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now + idx * 0.16);
-            osc.stop(now + idx * 0.16 + 0.15);
-          });
+          // ブッ（低めのやさしい音）
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(196.00, now); // G3
+          osc.frequency.setValueAtTime(164.81, now + 0.14); // E3
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.36);
         }
       } catch (e) {
-        // 音声再生不可時は無視
+        // 音声再生不可時は無音で継続
       }
     }
 
     /* --------------------------------------------------------------------------
-       5. 再生モード（おぼえる）の制御ロジック
+       5. 再生モード（おぼえる）の状態管理と制御ロジック
        -------------------------------------------------------------------------- */
     let currentStudyIndex = 0;
     let isAutoPlaying = false;
@@ -983,30 +979,54 @@
     let showGrid = true;
 
     const SPEED_CONFIG = {
-      slow:   { rate: 0.75, pauseMs: 2200 },
-      normal: { rate: 1.0,  pauseMs: 1300 },
-      fast:   { rate: 1.25, pauseMs: 650 }
+      slow: { rate: 0.72, pauseMs: 1800 },
+      normal: { rate: 0.95, pauseMs: 1100 },
+      fast: { rate: 1.25, pauseMs: 550 }
     };
 
     /**
-     * 単元セレクトボックスを光村図書の単元順に構築する
+     * 単元セレクトボックス（おぼえる画面＆20問テスト開始位置用）を光村図書の単元順に構築する
      */
     function initUnitSelect() {
       const select = document.getElementById('unit-select');
+      const test20Select = document.getElementById('test20-unit-select');
       select.innerHTML = '';
+      if (test20Select) test20Select.innerHTML = '';
 
       let lastUnitKey = '';
       KANJI_DATA.forEach((item, idx) => {
         const unitKey = `${item.term}-${item.unit}`;
         if (unitKey !== lastUnitKey) {
           lastUnitKey = unitKey;
+          const label = `${item.term}学期｜${item.unit}（${idx + 1}番〜）`;
+
           const opt = document.createElement('option');
           opt.value = idx;
-          opt.textContent = `${item.term}学期｜${item.unit}（${idx + 1}番〜）`;
+          opt.textContent = label;
           select.appendChild(opt);
+
+          if (test20Select) {
+            const opt2 = document.createElement('option');
+            opt2.value = idx;
+            opt2.textContent = label;
+            test20Select.appendChild(opt2);
+          }
         }
       });
     }
+
+    /**
+     * 20問テストの「教科書じゅん」選択時に開始単元セレクトボックスを表示/非表示する
+     */
+    window.toggleTest20UnitSelect = function() {
+      const orderEl = document.querySelector('input[name="random20-order"]:checked');
+      const box = document.getElementById('test20-start-unit-box');
+      if (orderEl && orderEl.value === 'textbook') {
+        box.classList.remove('hidden');
+      } else {
+        box.classList.add('hidden');
+      }
+    };
 
     /**
      * 現在のインデックスの漢字カードを画面に描画する
@@ -1227,13 +1247,29 @@
       wrongItems = [];
 
       if (mode === 'random20') {
-        quizQuestions = shuffleArray(KANJI_DATA).slice(0, 20);
-        document.getElementById('quiz-mode-label').textContent = "🎲 ランダム 20問";
+        const orderEl = document.querySelector('input[name="random20-order"]:checked');
+        const orderVal = orderEl ? orderEl.value : 'shuffle';
+
+        if (orderVal === 'textbook') {
+          const startSelect = document.getElementById('test20-unit-select');
+          let startIdx = startSelect ? Number(startSelect.value) : 0;
+          // 選んだ単元から連続して20問出題（末尾に近い場合は200番まで収まるように調整）
+          if (startIdx + 20 > KANJI_DATA.length) {
+            startIdx = Math.max(0, KANJI_DATA.length - 20);
+          }
+          quizQuestions = KANJI_DATA.slice(startIdx, startIdx + 20);
+          document.getElementById('quiz-mode-label').textContent = `📖 20問（教科書じゅん ${startIdx + 1}〜${startIdx + 20}番）`;
+        } else {
+          quizQuestions = shuffleArray(KANJI_DATA).slice(0, 20);
+          document.getElementById('quiz-mode-label').textContent = "🎲 20問（シャッフル）";
+        }
       } else {
         const orderEl = document.querySelector('input[name="all200-order"]:checked');
         const orderVal = orderEl ? orderEl.value : 'textbook';
         quizQuestions = orderVal === 'shuffle' ? shuffleArray(KANJI_DATA) : [...KANJI_DATA];
-        document.getElementById('quiz-mode-label').textContent = "👑 すべての漢字 200問";
+        document.getElementById('quiz-mode-label').textContent = orderVal === 'shuffle'
+          ? "👑 200問（シャッフル）"
+          : "👑 200問（教科書じゅん）";
       }
 
       document.getElementById('test-start-screen').classList.add('hidden');
@@ -1470,7 +1506,7 @@
       filtered.forEach((rec) => {
         const isR20 = rec.mode === 'random20';
         const modeBadge = isR20
-          ? `<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700">🎲 ランダム20問</span>`
+          ? `<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700">🎲 20問テスト</span>`
           : `<span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700">👑 すべての漢字200問</span>`;
 
         const percent = Math.round((rec.score / rec.total) * 100);
